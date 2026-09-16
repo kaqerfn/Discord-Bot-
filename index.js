@@ -1,7 +1,7 @@
 // ==========================================================
 // KAQER COMMUNITY BOT
 // DISCORD.JS v14
-// FULL SERVER REPAIR + FIXED LEVEL SYSTEM
+// AESTHETIC COMMUNITY SERVER + VERIFICATION
 // ==========================================================
 
 const {
@@ -32,7 +32,7 @@ const path = require("path");
 const TOKEN = process.env.TOKEN;
 
 if (!TOKEN) {
-  console.error("❌ TOKEN is missing from Railway variables.");
+  console.error("❌ TOKEN is missing.");
   process.exit(1);
 }
 
@@ -53,64 +53,35 @@ const client = new Client({
 // STYLE
 // ==========================================================
 
-const CHANNEL_PREFIX = ">ᴗ<・";
-const CATEGORY_PREFIX = "౨ৎ・";
+const CHANNEL_PREFIX = "";
+const CATEGORY_PREFIX = "";
 
 // ==========================================================
-// LEVEL SETTINGS
+// XP
 // ==========================================================
 
 const XP_MIN = 15;
 const XP_MAX = 25;
 const XP_COOLDOWN = 60000;
 
-// XP required for each level:
-// Level 1 = 100
-// Level 2 = 400
-// Level 3 = 900
-// Level 4 = 1600
-// Level 5 = 2500
-// Level 10 = 10000
-// Level 20 = 40000
-// etc.
+function getLevel(xp) {
+  return Math.floor(Math.sqrt(xp / 100));
+}
 
 function xpForLevel(level) {
   return level * level * 100;
 }
 
-function getLevel(xp) {
-  return Math.floor(Math.sqrt(xp / 100));
-}
-
-// ==========================================================
-// LEVEL ROLES
-// ==========================================================
-
 const LEVEL_ROLES = [
-  {
-    level: 5,
-    name: "level 5",
-  },
-  {
-    level: 10,
-    name: "level 10",
-  },
-  {
-    level: 20,
-    name: "level 20",
-  },
-  {
-    level: 30,
-    name: "level 30",
-  },
-  {
-    level: 50,
-    name: "level 50",
-  },
+  { level: 5, name: "level 5" },
+  { level: 10, name: "level 10" },
+  { level: 20, name: "level 20" },
+  { level: 30, name: "level 30" },
+  { level: 50, name: "level 50" },
 ];
 
 // ==========================================================
-// ALL ROLES
+// ROLES
 // NO EMOJIS
 // ==========================================================
 
@@ -122,6 +93,7 @@ const ROLE_NAMES = [
   "staff",
   "support",
 
+  "verified",
   "member",
   "bots",
 
@@ -153,33 +125,25 @@ const ROLE_NAMES = [
 ];
 
 // ==========================================================
-// XP STORAGE
+// LEVEL DATA
 // ==========================================================
 
 const DATA_FOLDER = path.join(__dirname, "data");
 const LEVEL_FILE = path.join(DATA_FOLDER, "levels.json");
 
 if (!fs.existsSync(DATA_FOLDER)) {
-  fs.mkdirSync(DATA_FOLDER, {
-    recursive: true,
-  });
+  fs.mkdirSync(DATA_FOLDER, { recursive: true });
 }
 
 if (!fs.existsSync(LEVEL_FILE)) {
-  fs.writeFileSync(
-    LEVEL_FILE,
-    "{}"
-  );
+  fs.writeFileSync(LEVEL_FILE, "{}");
 }
 
 let levels = {};
 
 try {
   levels = JSON.parse(
-    fs.readFileSync(
-      LEVEL_FILE,
-      "utf8"
-    )
+    fs.readFileSync(LEVEL_FILE, "utf8")
   );
 } catch {
   levels = {};
@@ -189,11 +153,7 @@ function saveLevels() {
   try {
     fs.writeFileSync(
       LEVEL_FILE,
-      JSON.stringify(
-        levels,
-        null,
-        2
-      )
+      JSON.stringify(levels, null, 2)
     );
   } catch (error) {
     console.error(
@@ -202,16 +162,6 @@ function saveLevels() {
     );
   }
 }
-
-// ==========================================================
-// XP COOLDOWN
-// ==========================================================
-
-const xpCooldown = new Set();
-
-// ==========================================================
-// FIND / CREATE USER DATA
-// ==========================================================
 
 function getUserData(guildId, userId) {
   if (!levels[guildId]) {
@@ -228,7 +178,13 @@ function getUserData(guildId, userId) {
 }
 
 // ==========================================================
-// LEVEL ROLE SYSTEM
+// XP COOLDOWN
+// ==========================================================
+
+const xpCooldown = new Set();
+
+// ==========================================================
+// LEVEL ROLE
 // ==========================================================
 
 async function updateLevelRole(member) {
@@ -238,41 +194,30 @@ async function updateLevelRole(member) {
       member.id
     );
 
-    const currentLevel = getLevel(
-      data.xp
-    );
+    const currentLevel = getLevel(data.xp);
 
-    // Find the highest reward role the user qualifies for.
     let highestReward = null;
 
     for (const reward of LEVEL_ROLES) {
-      if (
-        currentLevel >= reward.level
-      ) {
+      if (currentLevel >= reward.level) {
         highestReward = reward;
       }
     }
 
-    // If they have not reached level 5,
-    // remove any accidental level roles.
+    // Remove all level roles if below level 5
     if (!highestReward) {
       for (const reward of LEVEL_ROLES) {
         const role =
           member.guild.roles.cache.find(
-            (r) =>
-              r.name === reward.name
+            r => r.name === reward.name
           );
 
         if (
           role &&
-          member.roles.cache.has(
-            role.id
-          )
+          member.roles.cache.has(role.id)
         ) {
           try {
-            await member.roles.remove(
-              role
-            );
+            await member.roles.remove(role);
           } catch {}
         }
       }
@@ -282,19 +227,12 @@ async function updateLevelRole(member) {
 
     const highestRole =
       member.guild.roles.cache.find(
-        (r) =>
-          r.name ===
-          highestReward.name
+        r => r.name === highestReward.name
       );
 
-    if (!highestRole) {
-      console.log(
-        `⚠️ Missing role: ${highestReward.name}`
-      );
-      return;
-    }
+    if (!highestRole) return;
 
-    // Remove every lower level role.
+    // Remove lower level roles
     for (const reward of LEVEL_ROLES) {
       if (
         reward.level >=
@@ -305,30 +243,20 @@ async function updateLevelRole(member) {
 
       const oldRole =
         member.guild.roles.cache.find(
-          (r) =>
-            r.name ===
-            reward.name
+          r => r.name === reward.name
         );
 
       if (
         oldRole &&
-        member.roles.cache.has(
-          oldRole.id
-        )
+        member.roles.cache.has(oldRole.id)
       ) {
         try {
-          await member.roles.remove(
-            oldRole
-          );
-        } catch (error) {
-          console.log(
-            `⚠️ Could not remove ${oldRole.name}: ${error.message}`
-          );
-        }
+          await member.roles.remove(oldRole);
+        } catch {}
       }
     }
 
-    // Give the highest level role.
+    // Give highest role
     if (
       !member.roles.cache.has(
         highestRole.id
@@ -340,68 +268,17 @@ async function updateLevelRole(member) {
         );
 
         console.log(
-          `⭐ ${member.user.tag} received ${highestRole.name}`
+          `⭐ ${member.user.tag} → ${highestRole.name}`
         );
       } catch (error) {
         console.log(
-          `❌ Could not give ${highestRole.name} to ${member.user.tag}: ${error.message}`
+          `❌ Level role error: ${error.message}`
         );
       }
     }
   } catch (error) {
     console.error(
-      "Level role update error:",
-      error.message
-    );
-  }
-}
-
-// ==========================================================
-// FIX BOT ROLE POSITION
-// ==========================================================
-
-async function fixBotRolePosition(guild) {
-  try {
-    const botMember =
-      guild.members.me;
-
-    if (!botMember) return;
-
-    const botRole =
-      botMember.roles.botRole;
-
-    if (!botRole) {
-      console.log(
-        "⚠️ Bot role could not be found."
-      );
-      return;
-    }
-
-    const highestRole =
-      guild.roles.highest;
-
-    if (
-      botRole.position <
-      highestRole.position
-    ) {
-      try {
-        await botRole.setPosition(
-          guild.roles.highest.position - 1
-        );
-
-        console.log(
-          "⬆️ Bot role moved above the server roles."
-        );
-      } catch (error) {
-        console.log(
-          "⚠️ Could not automatically move bot role:",
-          error.message
-        );
-      }
-    }
-  } catch (error) {
-    console.log(
-      "Bot role position error:",
+      "Level system error:",
       error.message
     );
   }
@@ -412,9 +289,7 @@ async function fixBotRolePosition(guild) {
 // ==========================================================
 
 async function deleteChannels(guild) {
-  console.log(
-    "🗑️ Deleting ALL channels..."
-  );
+  console.log("🗑️ Deleting all channels...");
 
   const channels = [
     ...guild.channels.cache.values(),
@@ -423,7 +298,7 @@ async function deleteChannels(guild) {
   for (const channel of channels) {
     try {
       await channel.delete(
-        "Complete Kaqer server repair"
+        "Complete server rebuild"
       );
 
       console.log(
@@ -436,12 +311,8 @@ async function deleteChannels(guild) {
     }
   }
 
-  await new Promise((resolve) =>
+  await new Promise(resolve =>
     setTimeout(resolve, 2000)
-  );
-
-  console.log(
-    "✅ Channel deletion finished."
   );
 }
 
@@ -450,16 +321,15 @@ async function deleteChannels(guild) {
 // ==========================================================
 
 async function deleteRoles(guild) {
-  console.log(
-    "🗑️ Deleting removable roles..."
-  );
+  console.log("🗑️ Deleting all removable roles...");
 
   const roles = [
     ...guild.roles.cache.values(),
   ]
     .filter(
-      (role) =>
-        role.id !== guild.id
+      role =>
+        role.id !== guild.id &&
+        !role.managed
     )
     .sort(
       (a, b) =>
@@ -468,15 +338,8 @@ async function deleteRoles(guild) {
 
   for (const role of roles) {
     try {
-      if (role.managed) {
-        console.log(
-          `⏭️ Skipping managed role: ${role.name}`
-        );
-        continue;
-      }
-
       await role.delete(
-        "Complete Kaqer server repair"
+        "Complete server rebuild"
       );
 
       console.log(
@@ -484,17 +347,13 @@ async function deleteRoles(guild) {
       );
     } catch (error) {
       console.log(
-        `⚠️ Could not delete role ${role.name}: ${error.message}`
+        `⚠️ Could not delete ${role.name}: ${error.message}`
       );
     }
   }
 
-  await new Promise((resolve) =>
+  await new Promise(resolve =>
     setTimeout(resolve, 1500)
-  );
-
-  console.log(
-    "✅ Role deletion finished."
   );
 }
 
@@ -505,9 +364,7 @@ async function deleteRoles(guild) {
 async function createRoles(guild) {
   const roles = {};
 
-  console.log(
-    "✨ Creating roles..."
-  );
+  console.log("✨ Creating roles...");
 
   for (const name of ROLE_NAMES) {
     try {
@@ -515,7 +372,7 @@ async function createRoles(guild) {
         await guild.roles.create({
           name,
           reason:
-            "Kaqer server repair",
+            "Kaqer community server setup",
         });
 
       roles[name] = role;
@@ -525,10 +382,12 @@ async function createRoles(guild) {
       );
     } catch (error) {
       console.log(
-        `❌ Could not create role ${name}: ${error.message}`
+        `❌ Could not create ${name}: ${error.message}`
       );
     }
   }
+
+  await guild.roles.fetch();
 
   return roles;
 }
@@ -537,14 +396,14 @@ async function createRoles(guild) {
 // STAFF PERMISSIONS
 // ==========================================================
 
-function staffOverwrites(
+function getStaffOverwrites(
   guild,
   roles
 ) {
   const overwrites = [
     {
-      id:
-        guild.roles.everyone.id,
+      id: guild.roles.everyone.id,
+
       deny: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
@@ -566,12 +425,129 @@ function staffOverwrites(
 
     overwrites.push({
       id: roles[name].id,
+
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
         PermissionFlagsBits.ReadMessageHistory,
         PermissionFlagsBits.Connect,
         PermissionFlagsBits.Speak,
+        PermissionFlagsBits.AttachFiles,
+      ],
+    });
+  }
+
+  return overwrites;
+}
+
+// ==========================================================
+// VERIFIED CATEGORY PERMISSIONS
+// ==========================================================
+
+function getVerifiedOverwrites(
+  guild,
+  roles
+) {
+  const overwrites = [
+    {
+      id: guild.roles.everyone.id,
+
+      deny: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.Connect,
+      ],
+    },
+  ];
+
+  // Verified members
+  if (roles["verified"]) {
+    overwrites.push({
+      id: roles["verified"].id,
+
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.AttachFiles,
+      ],
+    });
+  }
+
+  // Staff
+  const staffRoles = [
+    "owner",
+    "co-owner",
+    "admin",
+    "moderator",
+    "staff",
+    "support",
+  ];
+
+  for (const name of staffRoles) {
+    if (!roles[name]) continue;
+
+    overwrites.push({
+      id: roles[name].id,
+
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.AttachFiles,
+      ],
+    });
+  }
+
+  return overwrites;
+}
+
+// ==========================================================
+// ENTERING CATEGORY
+// ==========================================================
+
+function getEnteringOverwrites(
+  guild,
+  roles
+) {
+  const overwrites = [
+    {
+      id: guild.roles.everyone.id,
+
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.ReadMessageHistory,
+      ],
+
+      deny: [
+        PermissionFlagsBits.SendMessages,
+      ],
+    },
+  ];
+
+  // Staff can talk
+  const staffRoles = [
+    "owner",
+    "co-owner",
+    "admin",
+    "moderator",
+    "staff",
+    "support",
+  ];
+
+  for (const name of staffRoles) {
+    if (!roles[name]) continue;
+
+    overwrites.push({
+      id: roles[name].id,
+
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
       ],
     });
   }
@@ -587,65 +563,73 @@ async function makeCategory(
   guild,
   name,
   roles,
-  staffOnly = false
+  type = "verified"
 ) {
-  const options = {
-    name:
-      `${CATEGORY_PREFIX}${name}`,
-    type:
-      ChannelType.GuildCategory,
-  };
+  let permissionOverwrites;
 
-  if (staffOnly) {
-    options.permissionOverwrites =
-      staffOverwrites(
+  if (type === "staff") {
+    permissionOverwrites =
+      getStaffOverwrites(
         guild,
         roles
       );
   }
 
-  return guild.channels.create(
-    options
-  );
+  if (type === "verified") {
+    permissionOverwrites =
+      getVerifiedOverwrites(
+        guild,
+        roles
+      );
+  }
+
+  if (type === "entering") {
+    permissionOverwrites =
+      getEnteringOverwrites(
+        guild,
+        roles
+      );
+  }
+
+  return guild.channels.create({
+    name,
+    type: ChannelType.GuildCategory,
+
+    ...(permissionOverwrites
+      ? { permissionOverwrites }
+      : {}),
+  });
 }
 
 // ==========================================================
-// TEXT
+// TEXT CHANNEL
 // ==========================================================
 
 async function makeText(
   guild,
   category,
-  name,
-  options = {}
+  name
 ) {
   return guild.channels.create({
-    name:
-      `${CHANNEL_PREFIX}${name}`,
-    type:
-      ChannelType.GuildText,
+    name,
+    type: ChannelType.GuildText,
     parent: category.id,
-    ...options,
   });
 }
 
 // ==========================================================
-// VOICE
+// VOICE CHANNEL
 // ==========================================================
 
 async function makeVoice(
   guild,
   category,
-  name,
-  options = {}
+  name
 ) {
   return guild.channels.create({
-    name:
-      `${CHANNEL_PREFIX}${name}`,
-    type:
-      ChannelType.GuildVoice,
+    name,
+    type: ChannelType.GuildVoice,
     parent: category.id,
-    ...options,
   });
 }
 
@@ -664,58 +648,7 @@ async function lockChannel(
         SendMessages: false,
       }
     );
-  } catch (error) {
-    console.log(
-      `⚠️ Could not lock ${channel.name}: ${error.message}`
-    );
-  }
-}
-
-// ==========================================================
-// RULES
-// ==========================================================
-
-async function sendRules(channel) {
-  const embed =
-    new EmbedBuilder()
-      .setTitle(
-        "౨ৎ・rules"
-      )
-      .setDescription(
-        [
-          "**01 — Be respectful**",
-          "Treat everyone with respect.",
-          "",
-          "**02 — No harassment**",
-          "Bullying, threats, and targeted harassment are not allowed.",
-          "",
-          "**03 — No spam**",
-          "Do not flood chats or spam pings.",
-          "",
-          "**04 — Keep content appropriate**",
-          "Follow Discord Terms of Service.",
-          "",
-          "**05 — Protect privacy**",
-          "Never post private information.",
-          "",
-          "**06 — Use the right channels**",
-          "Keep conversations where they belong.",
-          "",
-          "**07 — Staff**",
-          "Follow reasonable staff instructions.",
-          "",
-          "**08 — Have fun**",
-          "Meet people and enjoy the community. >ᴗ<",
-        ].join("\n")
-      )
-      .setFooter({
-        text:
-          "౨ৎ community rules",
-      });
-
-  await channel.send({
-    embeds: [embed],
-  });
+  } catch {}
 }
 
 // ==========================================================
@@ -726,15 +659,17 @@ async function sendWelcome(channel) {
   const embed =
     new EmbedBuilder()
       .setTitle(
-        "౨ৎ・welcome"
+        "౨ৎ・welcome ૮₍˶ᵔ ᵕ ᵔ˶₎ა"
       )
       .setDescription(
         [
           "welcome to the community >ᴗ<",
           "",
-          "read the rules,",
-          "check out self roles,",
-          "and come hang out!",
+          "♡ read the rules",
+          "♡ verify yourself",
+          "♡ meet everyone",
+          "",
+          "hope you enjoy your stay ౨ৎ",
         ].join("\n")
       );
 
@@ -744,33 +679,92 @@ async function sendWelcome(channel) {
 }
 
 // ==========================================================
-// LEVEL CHANNEL
+// RULES
 // ==========================================================
 
-async function sendLevels(channel) {
+async function sendRules(channel) {
   const embed =
     new EmbedBuilder()
       .setTitle(
-        "౨ৎ・levels"
+        "౨ৎ・rules >ᴗ<"
       )
       .setDescription(
         [
-          "chat to earn XP >ᴗ<",
+          "**01**  be respectful",
+          "treat everyone with respect.",
           "",
-          "**level rewards**",
+          "**02**  no harassment",
+          "no bullying, threats, or targeted harassment.",
           "",
-          "level 5",
-          "level 10",
-          "level 20",
-          "level 30",
-          "level 50",
+          "**03**  no spam",
+          "don't spam messages, mentions, or channels.",
           "",
-          "Use `/rank` to check your progress.",
+          "**04**  appropriate content",
+          "keep content appropriate and follow Discord's rules.",
+          "",
+          "**05**  privacy",
+          "never share private information.",
+          "",
+          "**06**  use the right channels",
+          "keep conversations where they belong.",
+          "",
+          "**07**  listen to staff",
+          "follow reasonable staff instructions.",
+          "",
+          "**08**  have fun",
+          "make friends and enjoy the community ♡",
         ].join("\n")
-      );
+      )
+      .setFooter({
+        text: "౨ৎ community rules",
+      });
 
   await channel.send({
     embeds: [embed],
+  });
+}
+
+// ==========================================================
+// VERIFY PANEL
+// ==========================================================
+
+async function sendVerify(
+  channel
+) {
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・verify ૮₍˶ᵔ ᵕ ᔢ˶₎ა"
+      )
+      .setDescription(
+        [
+          "welcome >ᴗ<",
+          "",
+          "before entering the community,",
+          "please verify yourself below.",
+          "",
+          "once verified, the rest of the server",
+          "will become visible to you.",
+          "",
+          "౨ৎ click the button below",
+        ].join("\n")
+      );
+
+  const row =
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(
+          "verify_member"
+        )
+        .setLabel("✓ verify")
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+    );
+
+  await channel.send({
+    embeds: [embed],
+    components: [row],
   });
 }
 
@@ -778,11 +772,13 @@ async function sendLevels(channel) {
 // SELF ROLES
 // ==========================================================
 
-async function sendSelfRoles(channel) {
+async function sendSelfRoles(
+  channel
+) {
   const embed =
     new EmbedBuilder()
       .setTitle(
-        "౨ৎ・self roles"
+        "౨ৎ・self roles ♡"
       )
       .setDescription(
         [
@@ -818,83 +814,61 @@ async function sendSelfRoles(channel) {
       new ButtonBuilder()
         .setCustomId("role_sheher")
         .setLabel("❤️ she/her")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_hehim")
         .setLabel("💙 he/him")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_theythem")
         .setLabel("🖤 they/them")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_any")
         .setLabel("💚 any pronouns")
-        .setStyle(
-          ButtonStyle.Secondary
-        )
+        .setStyle(ButtonStyle.Secondary)
     ),
 
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("role_adult")
         .setLabel("🧑 adult")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_minor")
         .setLabel("🔞 minor")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_artist")
         .setLabel("🎨 artist")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_music")
         .setLabel("🎹 music")
-        .setStyle(
-          ButtonStyle.Secondary
-        )
+        .setStyle(ButtonStyle.Secondary)
     ),
 
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("role_anime")
         .setLabel("🌝 anime")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_introvert")
         .setLabel("👤 introvert")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_extrovert")
         .setLabel("🫂 extrovert")
-        .setStyle(
-          ButtonStyle.Secondary
-        )
+        .setStyle(ButtonStyle.Secondary)
     ),
 
     new ActionRowBuilder().addComponents(
@@ -902,43 +876,62 @@ async function sendSelfRoles(channel) {
         .setCustomId(
           "role_announcements"
         )
-        .setLabel(
-          "📣 announcements"
-        )
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setLabel("📣 announcements")
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_events")
         .setLabel("🎫 events")
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
-        .setCustomId(
-          "role_giveaways"
-        )
-        .setLabel(
-          "🫡 giveaways"
-        )
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
+        .setCustomId("role_giveaways")
+        .setLabel("🫡 giveaways")
+        .setStyle(ButtonStyle.Secondary),
 
       new ButtonBuilder()
         .setCustomId("role_polls")
         .setLabel("🐻‍❄️ polls")
-        .setStyle(
-          ButtonStyle.Secondary
-        )
+        .setStyle(ButtonStyle.Secondary)
     ),
   ];
 
   await channel.send({
     embeds: [embed],
     components: rows,
+  });
+}
+
+// ==========================================================
+// LEVEL PANEL
+// ==========================================================
+
+async function sendLevels(
+  channel
+) {
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・levels >ᴗ<"
+      )
+      .setDescription(
+        [
+          "chat to earn XP ♡",
+          "",
+          "**level rewards**",
+          "",
+          "level 5",
+          "level 10",
+          "level 20",
+          "level 30",
+          "level 50",
+          "",
+          "use `/rank` to check your progress.",
+        ].join("\n")
+      );
+
+  await channel.send({
+    embeds: [embed],
   });
 }
 
@@ -952,10 +945,14 @@ async function sendConfessions(
   const embed =
     new EmbedBuilder()
       .setTitle(
-        "౨ৎ・anonymous confessions"
+        "౨ৎ・confessions ♡"
       )
       .setDescription(
-        "have something to say?\n\nsend it anonymously below. >ᴗ<"
+        [
+          "have something to say?",
+          "",
+          "send it anonymously below >ᴗ<",
+        ].join("\n")
       );
 
   const row =
@@ -979,17 +976,25 @@ async function sendConfessions(
 }
 
 // ==========================================================
-// SUPPORT
+// TICKETS
 // ==========================================================
 
-async function sendSupport(channel) {
+async function sendTickets(
+  channel
+) {
   const embed =
     new EmbedBuilder()
       .setTitle(
-        "౨ৎ・support"
+        "౨ৎ・tickets >ᴗ<"
       )
       .setDescription(
-        "need help?\n\ncreate a private ticket and staff will help you."
+        [
+          "need some help?",
+          "",
+          "click below to open a private ticket.",
+          "",
+          "staff will help you as soon as possible ♡",
+        ].join("\n")
       );
 
   const row =
@@ -1022,10 +1027,16 @@ async function sendApplications(
   const embed =
     new EmbedBuilder()
       .setTitle(
-        "౨ৎ・moderator applications"
+        "౨ৎ・apply ૮₍˶ᵔ ᵕ ᔢ˶₎ა"
       )
       .setDescription(
-        "want to help the community?\n\nclick below to apply."
+        [
+          "want to help the community?",
+          "",
+          "click below to apply for moderator.",
+          "",
+          "your application will be sent to staff ♡",
+        ].join("\n")
       );
 
   const row =
@@ -1049,23 +1060,25 @@ async function sendApplications(
 }
 
 // ==========================================================
-// FULL REPAIR
+// REPAIR / BUILD SERVER
 // ==========================================================
 
-async function repairServer(guild) {
+async function repairServer(
+  guild
+) {
   console.log(
     "======================================"
   );
 
   console.log(
-    `🔧 REPAIRING ${guild.name}`
+    `🔧 BUILDING ${guild.name}`
   );
 
   console.log(
     "======================================"
   );
 
-  // DELETE EVERYTHING FIRST
+  // DELETE EVERYTHING
   await deleteChannels(guild);
   await deleteRoles(guild);
 
@@ -1073,79 +1086,227 @@ async function repairServer(guild) {
   const roles =
     await createRoles(guild);
 
-  // IMPORTANT:
-  // Refresh guild data after role creation.
-  await guild.roles.fetch();
-
-  // Try to move bot above the new roles.
-  await fixBotRolePosition(guild);
-
   // ========================================================
-  // INFO
+  // ENTERING
   // ========================================================
 
-  const info =
+  const entering =
     await makeCategory(
       guild,
-      "INFO",
-      roles
-    );
-
-  const rules =
-    await makeText(
-      guild,
-      info,
-      "rules"
-    );
-
-  const announcements =
-    await makeText(
-      guild,
-      info,
-      "announcements"
+      "୨ৎ・entering ૮₍˶ᵔ ᵕ ᵔ˶₎ა",
+      roles,
+      "entering"
     );
 
   const welcome =
     await makeText(
       guild,
-      info,
-      "welcome"
+      entering,
+      "╰・welcome"
     );
 
-  const goodbye =
+  const rules =
     await makeText(
       guild,
-      info,
-      "goodbye"
+      entering,
+      "╰・rules"
     );
 
-  const introductions =
+  const verify =
     await makeText(
       guild,
-      info,
-      "introductions"
+      entering,
+      "╰・verify"
     );
 
-  const boosts =
+  const announcements =
     await makeText(
       guild,
-      info,
-      "boosts"
+      entering,
+      "╰・announcements"
     );
 
-  const partnerships =
+  const updates =
     await makeText(
       guild,
-      info,
-      "partnerships"
+      entering,
+      "╰・updates"
     );
 
-  const selfRoles =
+  // ========================================================
+  // SOCIAL
+  // ========================================================
+
+  const social =
+    await makeCategory(
+      guild,
+      "౨ৎ・social ૮꒰ ˶• ༝ •˶꒱ა",
+      roles,
+      "verified"
+    );
+
+  await makeText(
+    guild,
+    social,
+    "୨ৎ・general-chat"
+  );
+
+  await makeText(
+    guild,
+    social,
+    "୨ৎ・general-chat-2"
+  );
+
+  await makeText(
+    guild,
+    social,
+    "⌞・vent-rant"
+  );
+
+  await makeText(
+    guild,
+    social,
+    "⌞・make-friends"
+  );
+
+  await makeText(
+    guild,
+    social,
+    "⌞・introductions"
+  );
+
+  await makeText(
+    guild,
+    social,
+    "⌞・media"
+  );
+
+  await makeText(
+    guild,
+    social,
+    "⌞・off-topic"
+  );
+
+  // ========================================================
+  // FUN
+  // ========================================================
+
+  const fun =
+    await makeCategory(
+      guild,
+      "౨ৎ・fun >ᴗ<",
+      roles,
+      "verified"
+    );
+
+  await makeText(
+    guild,
+    fun,
+    "♡・counting"
+  );
+
+  await makeText(
+    guild,
+    fun,
+    "♡・games"
+  );
+
+  await makeText(
+    guild,
+    fun,
+    "♡・would-you-rather"
+  );
+
+  await makeText(
+    guild,
+    fun,
+    "♡・daily-question"
+  );
+
+  await makeText(
+    guild,
+    fun,
+    "♡・questions"
+  );
+
+  await makeText(
+    guild,
+    fun,
+    "♡・hot-takes"
+  );
+
+  await makeText(
+    guild,
+    fun,
+    "♡・compliments"
+  );
+
+  const confessions =
     await makeText(
       guild,
-      info,
-      "self-roles"
+      fun,
+      "♡・confessions"
     );
+
+  // ========================================================
+  // CREATIVE
+  // ========================================================
+
+  const creative =
+    await makeCategory(
+      guild,
+      "୨ৎ・creative ૮₍˶ᵔ ᵕ ᵔ˶₎ა",
+      roles,
+      "verified"
+    );
+
+  await makeText(
+    guild,
+    creative,
+    "୨ৎ・art"
+  );
+
+  await makeText(
+    guild,
+    creative,
+    "୨ৎ・creations"
+  );
+
+  await makeText(
+    guild,
+    creative,
+    "୨ৎ・edits"
+  );
+
+  await makeText(
+    guild,
+    creative,
+    "୨ৎ・photography"
+  );
+
+  await makeText(
+    guild,
+    creative,
+    "୨ৎ・music"
+  );
+
+  await makeText(
+    guild,
+    creative,
+    "୨ৎ・clips"
+  );
+
+  await makeText(
+    guild,
+    creative,
+    "୨ৎ・screenshots"
+  );
+
+  await makeText(
+    guild,
+    creative,
+    "୨ৎ・ideas"
+  );
 
   // ========================================================
   // COMMUNITY
@@ -1154,87 +1315,241 @@ async function repairServer(guild) {
   const community =
     await makeCategory(
       guild,
-      "COMMUNITY",
-      roles
+      "౨ৎ・community ♡",
+      roles,
+      "verified"
     );
 
   await makeText(
     guild,
     community,
-    "chat"
+    "⌞・suggestions"
   );
 
   await makeText(
     guild,
     community,
-    "make-friends"
+    "⌞・polls"
   );
 
   await makeText(
     guild,
     community,
-    "media"
+    "⌞・events"
   );
 
   await makeText(
     guild,
     community,
-    "memes"
+    "⌞・giveaways"
+  );
+
+  await makeText(
+    guild,
+    community,
+    "⌞・milestones"
+  );
+
+  await makeText(
+    guild,
+    community,
+    "⌞・starboard"
   );
 
   // ========================================================
-  // EXTRAS
+  // ROLES
   // ========================================================
 
-  const extras =
+  const roleCategory =
     await makeCategory(
       guild,
-      "EXTRAS",
-      roles
+      "୨ৎ・roles ૮₍˶• . •⑅₎ა",
+      roles,
+      "verified"
     );
+
+  const selfRoles =
+    await makeText(
+      guild,
+      roleCategory,
+      "╰・self-roles"
+    );
+
+  await makeText(
+    guild,
+    roleCategory,
+    "╰・pronouns"
+  );
+
+  await makeText(
+    guild,
+    roleCategory,
+    "╰・age-roles"
+  );
+
+  await makeText(
+    guild,
+    roleCategory,
+    "╰・interest-roles"
+  );
+
+  await makeText(
+    guild,
+    roleCategory,
+    "╰・notification-roles"
+  );
+
+  // ========================================================
+  // PARTNERS
+  // ========================================================
+
+  const partners =
+    await makeCategory(
+      guild,
+      "౨ৎ・partners 💘",
+      roles,
+      "verified"
+    );
+
+  await makeText(
+    guild,
+    partners,
+    "୨ৎ・partner-info"
+  );
+
+  await makeText(
+    guild,
+    partners,
+    "୨ৎ・partner-requests"
+  );
+
+  await makeText(
+    guild,
+    partners,
+    "୨ৎ・partners"
+  );
+
+  // ========================================================
+  // SUPPORT
+  // ========================================================
+
+  const support =
+    await makeCategory(
+      guild,
+      "౨ৎ・support ૮꒰ ˶• ༝ •˶꒱ა",
+      roles,
+      "verified"
+    );
+
+  const tickets =
+    await makeText(
+      guild,
+      support,
+      "╰・tickets"
+    );
+
+  const applications =
+    await makeText(
+      guild,
+      support,
+      "╰・apply"
+    );
+
+  await makeText(
+    guild,
+    support,
+    "╰・report"
+  );
+
+  await makeText(
+    guild,
+    support,
+    "╰・help"
+  );
+
+  // ========================================================
+  // BOTS
+  // ========================================================
+
+  const bots =
+    await makeCategory(
+      guild,
+      "୨ৎ・bots ૮₍˶ᵔ ᵕ ᔢ˶₎ა",
+      roles,
+      "verified"
+    );
+
+  await makeText(
+    guild,
+    bots,
+    "⌞・bot-commands"
+  );
 
   const levelsChannel =
     await makeText(
       guild,
-      extras,
-      "levels"
+      bots,
+      "⌞・levels"
     );
 
   await makeText(
     guild,
-    extras,
-    "starboard"
+    bots,
+    "⌞・leaderboard"
   );
 
-  const confessions =
-    await makeText(
-      guild,
-      extras,
-      "confessions"
-    );
+  await makeText(
+    guild,
+    bots,
+    "⌞・server-info"
+  );
 
-  const support =
-    await makeText(
-      guild,
-      extras,
-      "support"
-    );
+  await makeText(
+    guild,
+    bots,
+    "⌞・swear-jar"
+  );
 
   // ========================================================
-  // VOICE
+  // CALL
   // ========================================================
 
-  const voice =
+  const call =
     await makeCategory(
       guild,
-      "VOICE",
-      roles
+      "౨ৎ・call ♡",
+      roles,
+      "verified"
     );
 
   await makeVoice(
     guild,
-    voice,
-    "VC"
+    call,
+    "୨ৎ・lounge"
+  );
+
+  await makeVoice(
+    guild,
+    call,
+    "୨ৎ・music-vc"
+  );
+
+  await makeVoice(
+    guild,
+    call,
+    "୨ৎ・gaming"
+  );
+
+  await makeVoice(
+    guild,
+    call,
+    "୨ৎ・sleeping"
+  );
+
+  await makeVoice(
+    guild,
+    call,
+    "୨ৎ・afk"
   );
 
   // ========================================================
@@ -1244,47 +1559,53 @@ async function repairServer(guild) {
   const staff =
     await makeCategory(
       guild,
-      "STAFF",
+      "୨ৎ・staff ૮꒰ ˶• ༝ •˶꒱ა",
       roles,
-      true
+      "staff"
     );
 
   await makeText(
     guild,
     staff,
-    "staff-chat"
+    "⌞・staff-chat"
   );
 
-  const moderation =
-    await makeText(
-      guild,
-      staff,
-      "moderation"
-    );
+  await makeText(
+    guild,
+    staff,
+    "⌞・moderation"
+  );
 
   await makeText(
     guild,
     staff,
-    "staff-lounge"
+    "⌞・reports"
+  );
+
+  await makeText(
+    guild,
+    staff,
+    "⌞・applications"
+  );
+
+  await makeText(
+    guild,
+    staff,
+    "⌞・staff-lounge"
   );
 
   await makeVoice(
     guild,
     staff,
-    "staff-vc"
+    "⌞・staff-vc"
   );
 
   // ========================================================
-  // LOCK INFO
+  // LOCK INFO CHANNELS
   // ========================================================
 
   await lockChannel(
     rules,
-    guild
-  );
-
-  await lockChannel(
-    announcements,
     guild
   );
 
@@ -1294,17 +1615,12 @@ async function repairServer(guild) {
   );
 
   await lockChannel(
-    goodbye,
+    announcements,
     guild
   );
 
   await lockChannel(
-    boosts,
-    guild
-  );
-
-  await lockChannel(
-    partnerships,
+    updates,
     guild
   );
 
@@ -1312,33 +1628,25 @@ async function repairServer(guild) {
   // SEND PANELS
   // ========================================================
 
-  await sendRules(rules);
   await sendWelcome(welcome);
+  await sendRules(rules);
+  await sendVerify(verify);
   await sendSelfRoles(selfRoles);
   await sendLevels(levelsChannel);
   await sendConfessions(confessions);
-  await sendSupport(support);
-  await sendApplications(
-    moderation
-  );
-
-  await moderation.send(
-    "౨ৎ・**staff moderation**\n\nUse this channel for moderation."
-  );
-
-  // ========================================================
-  // FINAL ROLE POSITION FIX
-  // ========================================================
-
-  await guild.roles.fetch();
-  await fixBotRolePosition(guild);
+  await sendTickets(tickets);
+  await sendApplications(applications);
 
   console.log(
     "======================================"
   );
 
   console.log(
-    "✅ COMPLETE SERVER REPAIR FINISHED"
+    "✅ SERVER BUILD COMPLETE"
+  );
+
+  console.log(
+    "🔐 Verification system enabled."
   );
 
   console.log(
@@ -1347,14 +1655,14 @@ async function repairServer(guild) {
 }
 
 // ==========================================================
-// SLASH COMMANDS
+// COMMANDS
 // ==========================================================
 
 const commands = [
   new SlashCommandBuilder()
     .setName("setup")
     .setDescription(
-      "Completely reset and rebuild the server."
+      "Completely rebuild the server."
     )
     .setDefaultMemberPermissions(
       PermissionFlagsBits.ManageGuild
@@ -1398,7 +1706,7 @@ const commands = [
     .setDefaultMemberPermissions(
       PermissionFlagsBits.Administrator
     ),
-].map((command) =>
+].map(command =>
   command.toJSON()
 );
 
@@ -1422,6 +1730,7 @@ client.once(
             ActivityType.Watching,
         },
       ],
+
       status: "online",
     });
 
@@ -1429,9 +1738,7 @@ client.once(
       const rest =
         new REST({
           version: "10",
-        }).setToken(
-          TOKEN
-        );
+        }).setToken(TOKEN);
 
       await rest.put(
         Routes.applicationCommands(
@@ -1443,7 +1750,7 @@ client.once(
       );
 
       console.log(
-        "✅ Commands registered."
+        "✅ Slash commands registered."
       );
     } catch (error) {
       console.error(
@@ -1460,7 +1767,7 @@ client.once(
 
 client.on(
   "guildMemberAdd",
-  async (member) => {
+  async member => {
     try {
       const roleName =
         member.user.bot
@@ -1469,9 +1776,8 @@ client.on(
 
       const role =
         member.guild.roles.cache.find(
-          (r) =>
-            r.name ===
-            roleName
+          r =>
+            r.name === roleName
         );
 
       if (role) {
@@ -1480,11 +1786,15 @@ client.on(
         );
       }
 
+      // IMPORTANT:
+      // Do NOT give verified here.
+      // They must click verify.
+
       const welcome =
         member.guild.channels.cache.find(
-          (c) =>
+          c =>
             c.name ===
-            `${CHANNEL_PREFIX}welcome`
+            "╰・welcome"
         );
 
       if (
@@ -1497,7 +1807,7 @@ client.on(
       }
     } catch (error) {
       console.error(
-        "Member join error:",
+        "Join error:",
         error.message
       );
     }
@@ -1505,48 +1815,55 @@ client.on(
 );
 
 // ==========================================================
-// MESSAGE XP
+// XP
 // ==========================================================
 
 client.on(
   "messageCreate",
-  async (message) => {
+  async message => {
     if (!message.guild) return;
     if (message.author.bot) return;
 
-    // XP cooldown.
+    // Don't give XP to unverified members
+    const member =
+      message.member;
+
     if (
-      xpCooldown.has(
-        message.author.id
+      !member.roles.cache.some(
+        role =>
+          role.name ===
+          "verified"
       )
     ) {
       return;
     }
 
-    xpCooldown.add(
-      message.author.id
+    const key =
+      `${message.guild.id}:${message.author.id}`;
+
+    if (
+      xpCooldown.has(key)
+    ) {
+      return;
+    }
+
+    xpCooldown.add(key);
+
+    setTimeout(
+      () =>
+        xpCooldown.delete(key),
+      XP_COOLDOWN
     );
 
-    setTimeout(() => {
-      xpCooldown.delete(
-        message.author.id
-      );
-    }, XP_COOLDOWN);
-
-    // Get user data.
     const data =
       getUserData(
         message.guild.id,
         message.author.id
       );
 
-    const oldXP =
-      data.xp;
-
     const oldLevel =
-      getLevel(oldXP);
+      getLevel(data.xp);
 
-    // Random XP from 15-25.
     const gainedXP =
       Math.floor(
         Math.random() *
@@ -1560,22 +1877,19 @@ client.on(
 
     saveLevels();
 
-    // ALWAYS update the reward role.
-    // This is the important fix.
     await updateLevelRole(
-      message.member
+      member
     );
 
-    // Announce actual level ups.
     if (
       newLevel >
       oldLevel
     ) {
       const levelChannel =
         message.guild.channels.cache.find(
-          (channel) =>
-            channel.name ===
-            `${CHANNEL_PREFIX}levels`
+          c =>
+            c.name ===
+            "⌞・levels"
         );
 
       const target =
@@ -1586,10 +1900,6 @@ client.on(
         `🎉 ${message.author} reached **level ${newLevel}**! >ᴗ<`
       );
     }
-
-    console.log(
-      `${message.author.tag}: +${gainedXP} XP | ${data.xp} total | level ${newLevel}`
-    );
   }
 );
 
@@ -1599,18 +1909,18 @@ client.on(
 
 client.on(
   "interactionCreate",
-  async (interaction) => {
+  async interaction => {
     try {
-      // ====================================================
+      // ======================================================
       // SLASH COMMANDS
-      // ====================================================
+      // ======================================================
 
       if (
         interaction.isChatInputCommand()
       ) {
-        // ==================================================
+        // ----------------------------------------------------
         // SETUP
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.commandName ===
@@ -1623,19 +1933,18 @@ client.on(
           ) {
             return interaction.reply({
               content:
-                "❌ You need **Manage Server** to use this.",
+                "❌ You need Manage Server.",
               ephemeral: true,
             });
           }
 
-          // Defer immediately.
           await interaction.deferReply({
             ephemeral: true,
           });
 
           try {
             await interaction.editReply(
-              "🔧 **Starting complete server repair...**\n\n🗑️ Deleting channels and roles..."
+              "🔧 Rebuilding server...\n\n🗑️ Removing old channels and roles..."
             );
 
             await repairServer(
@@ -1643,27 +1952,25 @@ client.on(
             );
 
             await interaction.editReply(
-              "✅ **Repair complete!**\n\n౨ৎ Server rebuilt successfully with the `౨ৎ` and `>ᴗ<` style.\n\n⭐ The level system is also fixed through level 50."
+              "✅ **Server rebuilt!**\n\n౨ৎ・Entering\n౨ৎ・Social\n౨ৎ・Fun\n౨ৎ・Creative\n౨ৎ・Community\n౨ৎ・Roles\n౨ৎ・Partners\n౨ৎ・Support\n౨ৎ・Bots\n౨ৎ・Call\n୨ৎ・Staff\n\n🔐 Members must verify before seeing the community."
             );
           } catch (error) {
             console.error(
-              "❌ REPAIR ERROR:",
+              "REPAIR ERROR:",
               error
             );
 
-            try {
-              await interaction.editReply(
-                `❌ **Repair failed.**\n\n\`${error.message}\`\n\nGive the bot **Administrator** permission and try again.`
-              );
-            } catch {}
+            await interaction.editReply(
+              `❌ Repair failed:\n\`${error.message}\``
+            );
           }
 
           return;
         }
 
-        // ==================================================
+        // ----------------------------------------------------
         // RANK
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.commandName ===
@@ -1676,14 +1983,10 @@ client.on(
             );
 
           const level =
-            getLevel(
-              data.xp
-            );
+            getLevel(data.xp);
 
           const currentXP =
-            xpForLevel(
-              level
-            );
+            xpForLevel(level);
 
           const nextXP =
             xpForLevel(
@@ -1704,7 +2007,7 @@ client.on(
           const embed =
             new EmbedBuilder()
               .setTitle(
-                "౨ৎ・your rank"
+                "౨ৎ・your rank >ᴗ<"
               )
               .setDescription(
                 [
@@ -1722,9 +2025,9 @@ client.on(
           });
         }
 
-        // ==================================================
+        // ----------------------------------------------------
         // LEADERBOARD
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.commandName ===
@@ -1744,45 +2047,36 @@ client.on(
                   (b[1]?.xp || 0) -
                   (a[1]?.xp || 0)
               )
-              .slice(
-                0,
-                10
-              );
+              .slice(0, 10);
 
           if (
             !entries.length
           ) {
             return interaction.reply(
-              "Nobody has earned XP yet. >ᴗ<"
+              "nobody has earned XP yet >ᴗ<"
             );
           }
 
-          const lines =
-            [];
+          const lines = [];
 
           for (
             let i = 0;
-            i <
-            entries.length;
+            i < entries.length;
             i++
           ) {
             const [
               userId,
               data,
-            ] =
-              entries[i];
+            ] = entries[i];
 
             const user =
               await client.users
-                .fetch(
-                  userId
-                )
+                .fetch(userId)
                 .catch(
                   () => null
                 );
 
-            if (!user)
-              continue;
+            if (!user) continue;
 
             lines.push(
               `**${i + 1}.** ${user} — level ${getLevel(data.xp)} — ${data.xp} XP`
@@ -1792,12 +2086,10 @@ client.on(
           const embed =
             new EmbedBuilder()
               .setTitle(
-                "౨ৎ・leaderboard"
+                "౨ৎ・leaderboard ♡"
               )
               .setDescription(
-                lines.join(
-                  "\n"
-                )
+                lines.join("\n")
               );
 
           return interaction.reply({
@@ -1805,9 +2097,9 @@ client.on(
           });
         }
 
-        // ==================================================
+        // ----------------------------------------------------
         // SERVER INFO
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.commandName ===
@@ -1835,9 +2127,9 @@ client.on(
           });
         }
 
-        // ==================================================
+        // ----------------------------------------------------
         // CONFESS
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.commandName ===
@@ -1863,9 +2155,7 @@ client.on(
               .setStyle(
                 TextInputStyle.Paragraph
               )
-              .setRequired(
-                true
-              )
+              .setRequired(true)
               .setMaxLength(
                 1000
               );
@@ -1881,9 +2171,9 @@ client.on(
           );
         }
 
-        // ==================================================
+        // ----------------------------------------------------
         // HELP
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.commandName ===
@@ -1892,16 +2182,16 @@ client.on(
           const embed =
             new EmbedBuilder()
               .setTitle(
-                "౨ৎ・help"
+                "౨ৎ・help >ᴗ<"
               )
               .setDescription(
                 [
-                  "`/rank` — your XP",
+                  "`/rank` — XP and level",
                   "`/leaderboard` — XP leaderboard",
-                  "`/serverinfo` — server info",
+                  "`/serverinfo` — server information",
                   "`/confess` — anonymous confession",
-                  "`/setup` — full server repair",
-                  "`/help` — help",
+                  "`/setup` — rebuild server",
+                  "`/help` — bot help",
                   "`/restart` — restart bot",
                 ].join("\n")
               );
@@ -1912,9 +2202,9 @@ client.on(
           });
         }
 
-        // ==================================================
+        // ----------------------------------------------------
         // RESTART
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.commandName ===
@@ -1947,9 +2237,9 @@ client.on(
         }
       }
 
-      // ====================================================
+      // ======================================================
       // BUTTONS
-      // ====================================================
+      // ======================================================
 
       if (
         interaction.isButton()
@@ -1957,46 +2247,93 @@ client.on(
         const guild =
           interaction.guild;
 
+        // ====================================================
+        // VERIFY
+        // ====================================================
+
+        if (
+          interaction.customId ===
+          "verify_member"
+        ) {
+          const verifiedRole =
+            guild.roles.cache.find(
+              r =>
+                r.name ===
+                "verified"
+            );
+
+          if (!verifiedRole) {
+            return interaction.reply({
+              content:
+                "❌ The verified role could not be found.",
+              ephemeral: true,
+            });
+          }
+
+          if (
+            interaction.member.roles.cache.has(
+              verifiedRole.id
+            )
+          ) {
+            return interaction.reply({
+              content:
+                "you are already verified >ᴗ<",
+              ephemeral: true,
+            });
+          }
+
+          try {
+            await interaction.member.roles.add(
+              verifiedRole
+            );
+
+            return interaction.reply({
+              content:
+                "౨ৎ **verified!** welcome to the community >ᴗ<",
+              ephemeral: true,
+            });
+          } catch (error) {
+            console.error(
+              "VERIFY ERROR:",
+              error
+            );
+
+            return interaction.reply({
+              content:
+                "❌ I couldn't give you the verified role. Make sure my bot role is above the verified role.",
+              ephemeral: true,
+            });
+          }
+        }
+
+        // ====================================================
+        // SELF ROLES
+        // ====================================================
+
         const roleMap = {
-          role_sheher:
-            "she/her",
-          role_hehim:
-            "he/him",
+          role_sheher: "she/her",
+          role_hehim: "he/him",
           role_theythem:
             "they/them",
           role_any:
             "any pronouns",
-
-          role_adult:
-            "adult",
-          role_minor:
-            "minor",
-
-          role_artist:
-            "artist",
-          role_music:
-            "music",
-          role_anime:
-            "anime",
-
+          role_adult: "adult",
+          role_minor: "minor",
+          role_artist: "artist",
+          role_music: "music",
+          role_anime: "anime",
           role_introvert:
             "introvert",
           role_extrovert:
             "extrovert",
-
           role_announcements:
             "announcements",
           role_events:
             "events",
           role_giveaways:
             "giveaways",
-          role_polls:
-            "polls",
+          role_polls: "polls",
         };
-
-        // ==================================================
-        // SELF ROLES
-        // ==================================================
 
         if (
           roleMap[
@@ -2010,7 +2347,7 @@ client.on(
 
           const role =
             guild.roles.cache.find(
-              (r) =>
+              r =>
                 r.name ===
                 roleName
             );
@@ -2018,7 +2355,7 @@ client.on(
           if (!role) {
             return interaction.reply({
               content:
-                "❌ That role doesn't exist.",
+                "❌ Role not found.",
               ephemeral: true,
             });
           }
@@ -2034,7 +2371,7 @@ client.on(
 
             return interaction.reply({
               content:
-                `Removed **${roleName}** >ᴗ<`,
+                `removed **${roleName}** >ᴗ<`,
               ephemeral: true,
             });
           }
@@ -2045,14 +2382,14 @@ client.on(
 
           return interaction.reply({
             content:
-              `Added **${roleName}** >ᴗ<`,
+              `added **${roleName}** >ᴗ<`,
             ephemeral: true,
           });
         }
 
-        // ==================================================
+        // ====================================================
         // CONFESSION BUTTON
-        // ==================================================
+        // ====================================================
 
         if (
           interaction.customId ===
@@ -2078,9 +2415,7 @@ client.on(
               .setStyle(
                 TextInputStyle.Paragraph
               )
-              .setRequired(
-                true
-              )
+              .setRequired(true)
               .setMaxLength(
                 1000
               );
@@ -2096,9 +2431,9 @@ client.on(
           );
         }
 
-        // ==================================================
-        // TICKET
-        // ==================================================
+        // ====================================================
+        // CREATE TICKET
+        // ====================================================
 
         if (
           interaction.customId ===
@@ -2111,17 +2446,14 @@ client.on(
                 /[^a-z0-9]/g,
                 ""
               )
-              .slice(
-                0,
-                15
-              );
+              .slice(0, 15);
 
           const ticketName =
-            `${CHANNEL_PREFIX}ticket-${username}`;
+            `╰・ticket-${username}`;
 
           const existing =
             guild.channels.cache.find(
-              (channel) =>
+              channel =>
                 channel.name ===
                 ticketName
             );
@@ -2129,27 +2461,40 @@ client.on(
           if (existing) {
             return interaction.reply({
               content:
-                "🎫 You already have a ticket open.",
+                `🎫 you already have a ticket: ${existing}`,
               ephemeral: true,
             });
           }
+
+          const category =
+            guild.channels.cache.find(
+              channel =>
+                channel.type ===
+                  ChannelType.GuildCategory &&
+                channel.name ===
+                  "౨ৎ・support ૮꒰ ˶• ༝ •˶꒱ა"
+            );
 
           const overwrites = [
             {
               id:
                 guild.roles
                   .everyone.id,
+
               deny: [
                 PermissionFlagsBits.ViewChannel,
               ],
             },
+
             {
               id:
                 interaction.user.id,
+
               allow: [
                 PermissionFlagsBits.ViewChannel,
                 PermissionFlagsBits.SendMessages,
                 PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.AttachFiles,
               ],
             },
           ];
@@ -2168,16 +2513,16 @@ client.on(
           ) {
             const role =
               guild.roles.cache.find(
-                (r) =>
+                r =>
                   r.name ===
                   name
               );
 
-            if (!role)
-              continue;
+            if (!role) continue;
 
             overwrites.push({
               id: role.id,
+
               allow: [
                 PermissionFlagsBits.ViewChannel,
                 PermissionFlagsBits.SendMessages,
@@ -2187,31 +2532,111 @@ client.on(
           }
 
           const ticket =
-            await guild.channels.create(
-              {
-                name:
-                  ticketName,
-                type:
-                  ChannelType.GuildText,
-                permissionOverwrites:
-                  overwrites,
-              }
+            await guild.channels.create({
+              name: ticketName,
+              type:
+                ChannelType.GuildText,
+
+              parent:
+                category
+                  ? category.id
+                  : undefined,
+
+              permissionOverwrites:
+                overwrites,
+            });
+
+          const closeRow =
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(
+                  "close_ticket"
+                )
+                .setLabel(
+                  "close ticket"
+                )
+                .setStyle(
+                  ButtonStyle.Danger
+                )
             );
 
-          await ticket.send(
-            `౨ৎ・welcome ${interaction.user} >ᴗ<\n\nTell staff what you need help with.`
-          );
+          await ticket.send({
+            content:
+              `${interaction.user}`,
+
+            embeds: [
+              new EmbedBuilder()
+                .setTitle(
+                  "౨ৎ・ticket >ᴗ<"
+                )
+                .setDescription(
+                  [
+                    `welcome ${interaction.user} ♡`,
+                    "",
+                    "tell staff what you need help with.",
+                    "",
+                    "when you're finished, close the ticket below.",
+                  ].join("\n")
+                ),
+            ],
+
+            components: [
+              closeRow,
+            ],
+          });
 
           return interaction.reply({
             content:
-              `🎫 Ticket created: ${ticket}`,
+              `🎫 ticket created: ${ticket}`,
             ephemeral: true,
           });
         }
 
-        // ==================================================
-        // MOD APPLICATION
-        // ==================================================
+        // ====================================================
+        // CLOSE TICKET
+        // ====================================================
+
+        if (
+          interaction.customId ===
+          "close_ticket"
+        ) {
+          const channel =
+            interaction.channel;
+
+          if (
+            !channel ||
+            !channel.name.includes(
+              "ticket-"
+            )
+          ) {
+            return interaction.reply({
+              content:
+                "❌ this isn't a ticket.",
+              ephemeral: true,
+            });
+          }
+
+          await interaction.reply(
+            "🔒 closing ticket..."
+          );
+
+          setTimeout(
+            async () => {
+              try {
+                await channel.delete(
+                  "Ticket closed"
+                );
+              } catch {}
+            },
+            1500
+          );
+
+          return;
+        }
+
+        // ====================================================
+        // MODERATOR APPLICATION
+        // ====================================================
 
         if (
           interaction.customId ===
@@ -2228,18 +2653,14 @@ client.on(
 
           const why =
             new TextInputBuilder()
-              .setCustomId(
-                "why"
-              )
+              .setCustomId("why")
               .setLabel(
                 "why do you want to be staff?"
               )
               .setStyle(
                 TextInputStyle.Paragraph
               )
-              .setRequired(
-                true
-              )
+              .setRequired(true)
               .setMaxLength(
                 1000
               );
@@ -2255,9 +2676,7 @@ client.on(
               .setStyle(
                 TextInputStyle.Paragraph
               )
-              .setRequired(
-                true
-              )
+              .setRequired(true)
               .setMaxLength(
                 1000
               );
@@ -2266,6 +2685,7 @@ client.on(
             new ActionRowBuilder().addComponents(
               why
             ),
+
             new ActionRowBuilder().addComponents(
               experience
             )
@@ -2277,16 +2697,16 @@ client.on(
         }
       }
 
-      // ====================================================
+      // ======================================================
       // MODALS
-      // ====================================================
+      // ======================================================
 
       if (
         interaction.isModalSubmit()
       ) {
-        // ==================================================
+        // ----------------------------------------------------
         // CONFESSION
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.customId ===
@@ -2299,12 +2719,20 @@ client.on(
 
           const channel =
             interaction.guild.channels.cache.find(
-              (c) =>
+              c =>
                 c.name ===
-                `${CHANNEL_PREFIX}confessions`
+                "♡・confessions"
             );
 
-          if (channel) {
+          if (!channel) {
+            return interaction.reply({
+              content:
+                "❌ I can't find the confession channel.",
+              ephemeral: true,
+            });
+          }
+
+          try {
             const embed =
               new EmbedBuilder()
                 .setTitle(
@@ -2316,25 +2744,35 @@ client.on(
                 .setFooter({
                   text:
                     "anonymous",
-                });
+                })
+                .setTimestamp();
 
             await channel.send({
-              embeds: [
-                embed,
-              ],
+              embeds: [embed],
+            });
+
+            return interaction.reply({
+              content:
+                "💭 your confession was sent anonymously! >ᴗ<",
+              ephemeral: true,
+            });
+          } catch (error) {
+            console.error(
+              "CONFESSION ERROR:",
+              error
+            );
+
+            return interaction.reply({
+              content:
+                "❌ I couldn't send the confession.",
+              ephemeral: true,
             });
           }
-
-          return interaction.reply({
-            content:
-              "💭 Your confession was sent anonymously. >ᴗ<",
-            ephemeral: true,
-          });
         }
 
-        // ==================================================
+        // ----------------------------------------------------
         // APPLICATION
-        // ==================================================
+        // ----------------------------------------------------
 
         if (
           interaction.customId ===
@@ -2352,51 +2790,70 @@ client.on(
 
           const channel =
             interaction.guild.channels.cache.find(
-              (c) =>
+              c =>
                 c.name ===
-                `${CHANNEL_PREFIX}moderation`
+                "╰・apply"
             );
 
-          if (channel) {
-            const embed =
-              new EmbedBuilder()
-                .setTitle(
-                  "౨ৎ・moderator application"
-                )
-                .addFields(
-                  {
-                    name:
-                      "applicant",
-                    value:
-                      `${interaction.user}`,
-                  },
-                  {
-                    name:
-                      "why",
-                    value:
-                      why,
-                  },
-                  {
-                    name:
-                      "experience",
-                    value:
-                      experience,
-                  }
-                )
-                .setTimestamp();
-
-            await channel.send({
-              embeds: [
-                embed,
-              ],
+          if (!channel) {
+            return interaction.reply({
+              content:
+                "❌ I can't find the application channel.",
+              ephemeral: true,
             });
           }
 
-          return interaction.reply({
-            content:
-              "📝 Application submitted. >ᴗ<",
-            ephemeral: true,
-          });
+          const embed =
+            new EmbedBuilder()
+              .setTitle(
+                "౨ৎ・new moderator application"
+              )
+              .addFields(
+                {
+                  name:
+                    "applicant",
+                  value:
+                    `${interaction.user}`,
+                },
+
+                {
+                  name:
+                    "why do you want to be staff?",
+                  value:
+                    why,
+                },
+
+                {
+                  name:
+                    "previous experience",
+                  value:
+                    experience,
+                }
+              )
+              .setTimestamp();
+
+          try {
+            await channel.send({
+              embeds: [embed],
+            });
+
+            return interaction.reply({
+              content:
+                "📝 your application was submitted! >ᴗ<",
+              ephemeral: true,
+            });
+          } catch (error) {
+            console.error(
+              "APPLICATION ERROR:",
+              error
+            );
+
+            return interaction.reply({
+              content:
+                "❌ I couldn't send the application.",
+              ephemeral: true,
+            });
+          }
         }
       }
     } catch (error) {
