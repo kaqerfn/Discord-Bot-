@@ -110,7 +110,7 @@ const client = new Client({
   ],
 });
 
-const PREFIX = "9Є •";
+const PREFIX = ">ᴗ<・";
 
 const XP_COOLDOWN = new Map();
 
