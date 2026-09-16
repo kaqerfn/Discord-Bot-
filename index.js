@@ -1,7 +1,7 @@
 // ==========================================================
-// Kaqer Community Bot
-// Discord.js v14
-// FULL SERVER RESET + REPAIR
+// KAQER COMMUNITY BOT
+// DISCORD.JS v14
+// FULL SERVER REPAIR + FIXED LEVEL SYSTEM
 // ==========================================================
 
 const {
@@ -32,7 +32,7 @@ const path = require("path");
 const TOKEN = process.env.TOKEN;
 
 if (!TOKEN) {
-  console.error("❌ TOKEN is missing from Railway Variables.");
+  console.error("❌ TOKEN is missing from Railway variables.");
   process.exit(1);
 }
 
@@ -57,7 +57,61 @@ const CHANNEL_PREFIX = ">ᴗ<・";
 const CATEGORY_PREFIX = "౨ৎ・";
 
 // ==========================================================
-// ROLE NAMES
+// LEVEL SETTINGS
+// ==========================================================
+
+const XP_MIN = 15;
+const XP_MAX = 25;
+const XP_COOLDOWN = 60000;
+
+// XP required for each level:
+// Level 1 = 100
+// Level 2 = 400
+// Level 3 = 900
+// Level 4 = 1600
+// Level 5 = 2500
+// Level 10 = 10000
+// Level 20 = 40000
+// etc.
+
+function xpForLevel(level) {
+  return level * level * 100;
+}
+
+function getLevel(xp) {
+  return Math.floor(Math.sqrt(xp / 100));
+}
+
+// ==========================================================
+// LEVEL ROLES
+// ==========================================================
+
+const LEVEL_ROLES = [
+  {
+    level: 5,
+    name: "level 5",
+  },
+  {
+    level: 10,
+    name: "level 10",
+  },
+  {
+    level: 20,
+    name: "level 20",
+  },
+  {
+    level: 30,
+    name: "level 30",
+  },
+  {
+    level: 50,
+    name: "level 50",
+  },
+];
+
+// ==========================================================
+// ALL ROLES
+// NO EMOJIS
 // ==========================================================
 
 const ROLE_NAMES = [
@@ -99,197 +153,277 @@ const ROLE_NAMES = [
 ];
 
 // ==========================================================
-// ROLE COLORS
+// XP STORAGE
 // ==========================================================
 
-const ROLE_COLORS = {
-  owner: 0xff69b4,
-  "co-owner": 0xff8acb,
-  admin: 0xff4d6dff,
-  moderator: 0x8f7cff,
-  staff: 0xb28cff,
-  support: 0x7ed6df,
+const DATA_FOLDER = path.join(__dirname, "data");
+const LEVEL_FILE = path.join(DATA_FOLDER, "levels.json");
 
-  member: 0xffffff,
-  bots: 0x95a5a6,
-
-  "she/her": 0xff8fb1,
-  "he/him": 0x7da7ff,
-  "they/them": 0xb794f4,
-  "any pronouns": 0x77dd77,
-
-  adult: 0xffc857,
-  minor: 0xff9f43,
-
-  artist: 0xff7eb6,
-  music: 0x9b8cff,
-  anime: 0xff8a80,
-
-  introvert: 0x8da9c4,
-  extrovert: 0xffa07a,
-
-  announcements: 0xffc857,
-  events: 0x7ed6df,
-  giveaways: 0xff8fb1,
-  polls: 0xb794f4,
-
-  "level 5": 0xffd166,
-  "level 10": 0xffb4e1ff,
-  "level 20": 0xd6a4ff,
-  "level 30": 0xff7f66,
-  "level 50": 0xff69b4,
-};
-
-// ==========================================================
-// LEVEL DATA
-// ==========================================================
-
-const dataFolder = path.join(__dirname, "data");
-const levelsFile = path.join(dataFolder, "levels.json");
-
-if (!fs.existsSync(dataFolder)) {
-  fs.mkdirSync(dataFolder, { recursive: true });
+if (!fs.existsSync(DATA_FOLDER)) {
+  fs.mkdirSync(DATA_FOLDER, {
+    recursive: true,
+  });
 }
 
-if (!fs.existsSync(levelsFile)) {
-  fs.writeFileSync(levelsFile, "{}");
+if (!fs.existsSync(LEVEL_FILE)) {
+  fs.writeFileSync(
+    LEVEL_FILE,
+    "{}"
+  );
 }
 
 let levels = {};
 
 try {
-  levels = JSON.parse(fs.readFileSync(levelsFile, "utf8"));
+  levels = JSON.parse(
+    fs.readFileSync(
+      LEVEL_FILE,
+      "utf8"
+    )
+  );
 } catch {
   levels = {};
 }
 
 function saveLevels() {
-  fs.writeFileSync(
-    levelsFile,
-    JSON.stringify(levels, null, 2)
-  );
+  try {
+    fs.writeFileSync(
+      LEVEL_FILE,
+      JSON.stringify(
+        levels,
+        null,
+        2
+      )
+    );
+  } catch (error) {
+    console.error(
+      "❌ Could not save XP:",
+      error.message
+    );
+  }
 }
 
 // ==========================================================
-// LEVEL CALCULATION
+// XP COOLDOWN
 // ==========================================================
 
-function calculateLevel(xp) {
-  return Math.floor(Math.sqrt(xp / 100));
-}
-
-function xpForLevel(level) {
-  return level * level * 100;
-}
+const xpCooldown = new Set();
 
 // ==========================================================
-// SERVER STRUCTURE
+// FIND / CREATE USER DATA
 // ==========================================================
 
-const STRUCTURE = {
-  info: [
-    "rules",
-    "announcements",
-    "welcome",
-    "goodbye",
-    "introductions",
-    "boosts",
-    "partnerships",
-    "self-roles",
-  ],
+function getUserData(guildId, userId) {
+  if (!levels[guildId]) {
+    levels[guildId] = {};
+  }
 
-  community: [
-    "chat",
-    "make-friends",
-    "media",
-    "memes",
-  ],
+  if (!levels[guildId][userId]) {
+    levels[guildId][userId] = {
+      xp: 0,
+    };
+  }
 
-  extras: [
-    "levels",
-    "starboard",
-    "confessions",
-    "support",
-  ],
-
-  voice: [
-    "VC",
-  ],
-
-  staff: [
-    "staff-chat",
-    "moderation",
-    "staff-lounge",
-    "staff-vc",
-  ],
-};
-
-// ==========================================================
-// CREATE ROLE
-// ==========================================================
-
-async function createRole(guild, name) {
-  let role = guild.roles.cache.find(
-    (r) => r.name === name
-  );
-
-  if (role) return role;
-
-  return await guild.roles.create({
-    name,
-    color: ROLE_COLORS[name] || 0x5865f2,
-    reason: "Kaqer server repair",
-  });
+  return levels[guildId][userId];
 }
 
 // ==========================================================
-// DELETE ROLES
+// LEVEL ROLE SYSTEM
 // ==========================================================
 
-async function deleteAllRoles(guild) {
-  console.log("🗑️ Deleting removable roles...");
+async function updateLevelRole(member) {
+  try {
+    const data = getUserData(
+      member.guild.id,
+      member.id
+    );
 
-  const roles = [...guild.roles.cache.values()]
-    .filter((role) => role.id !== guild.id)
-    .sort((a, b) => b.position - a.position);
+    const currentLevel = getLevel(
+      data.xp
+    );
 
-  for (const role of roles) {
-    try {
-      if (role.managed) {
-        console.log(
-          `⏭️ Skipping managed role: ${role.name}`
-        );
+    // Find the highest reward role the user qualifies for.
+    let highestReward = null;
+
+    for (const reward of LEVEL_ROLES) {
+      if (
+        currentLevel >= reward.level
+      ) {
+        highestReward = reward;
+      }
+    }
+
+    // If they have not reached level 5,
+    // remove any accidental level roles.
+    if (!highestReward) {
+      for (const reward of LEVEL_ROLES) {
+        const role =
+          member.guild.roles.cache.find(
+            (r) =>
+              r.name === reward.name
+          );
+
+        if (
+          role &&
+          member.roles.cache.has(
+            role.id
+          )
+        ) {
+          try {
+            await member.roles.remove(
+              role
+            );
+          } catch {}
+        }
+      }
+
+      return;
+    }
+
+    const highestRole =
+      member.guild.roles.cache.find(
+        (r) =>
+          r.name ===
+          highestReward.name
+      );
+
+    if (!highestRole) {
+      console.log(
+        `⚠️ Missing role: ${highestReward.name}`
+      );
+      return;
+    }
+
+    // Remove every lower level role.
+    for (const reward of LEVEL_ROLES) {
+      if (
+        reward.level >=
+        highestReward.level
+      ) {
         continue;
       }
 
-      await role.delete(
-        "Full Kaqer server repair"
-      );
+      const oldRole =
+        member.guild.roles.cache.find(
+          (r) =>
+            r.name ===
+            reward.name
+        );
 
-      console.log(`🗑️ Deleted role: ${role.name}`);
-    } catch (error) {
-      console.log(
-        `⚠️ Could not delete role ${role.name}: ${error.message}`
-      );
+      if (
+        oldRole &&
+        member.roles.cache.has(
+          oldRole.id
+        )
+      ) {
+        try {
+          await member.roles.remove(
+            oldRole
+          );
+        } catch (error) {
+          console.log(
+            `⚠️ Could not remove ${oldRole.name}: ${error.message}`
+          );
+        }
+      }
     }
-  }
 
-  console.log("✅ Roles cleaned.");
+    // Give the highest level role.
+    if (
+      !member.roles.cache.has(
+        highestRole.id
+      )
+    ) {
+      try {
+        await member.roles.add(
+          highestRole
+        );
+
+        console.log(
+          `⭐ ${member.user.tag} received ${highestRole.name}`
+        );
+      } catch (error) {
+        console.log(
+          `❌ Could not give ${highestRole.name} to ${member.user.tag}: ${error.message}`
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Level role update error:",
+      error.message
+    );
+  }
+}
+
+// ==========================================================
+// FIX BOT ROLE POSITION
+// ==========================================================
+
+async function fixBotRolePosition(guild) {
+  try {
+    const botMember =
+      guild.members.me;
+
+    if (!botMember) return;
+
+    const botRole =
+      botMember.roles.botRole;
+
+    if (!botRole) {
+      console.log(
+        "⚠️ Bot role could not be found."
+      );
+      return;
+    }
+
+    const highestRole =
+      guild.roles.highest;
+
+    if (
+      botRole.position <
+      highestRole.position
+    ) {
+      try {
+        await botRole.setPosition(
+          guild.roles.highest.position - 1
+        );
+
+        console.log(
+          "⬆️ Bot role moved above the server roles."
+        );
+      } catch (error) {
+        console.log(
+          "⚠️ Could not automatically move bot role:",
+          error.message
+        );
+      }
+    }
+  } catch (error) {
+    console.log(
+      "Bot role position error:",
+      error.message
+    );
+  }
 }
 
 // ==========================================================
 // DELETE CHANNELS
 // ==========================================================
 
-async function deleteAllChannels(guild) {
-  console.log("🗑️ Deleting all channels...");
+async function deleteChannels(guild) {
+  console.log(
+    "🗑️ Deleting ALL channels..."
+  );
 
-  const channels = [...guild.channels.cache.values()];
+  const channels = [
+    ...guild.channels.cache.values(),
+  ];
 
   for (const channel of channels) {
     try {
       await channel.delete(
-        "Full Kaqer server repair"
+        "Complete Kaqer server repair"
       );
 
       console.log(
@@ -302,18 +436,98 @@ async function deleteAllChannels(guild) {
     }
   }
 
-  console.log("✅ Channels cleaned.");
+  await new Promise((resolve) =>
+    setTimeout(resolve, 2000)
+  );
+
+  console.log(
+    "✅ Channel deletion finished."
+  );
 }
 
 // ==========================================================
-// CREATE ALL ROLES
+// DELETE ROLES
 // ==========================================================
 
-async function createAllRoles(guild) {
+async function deleteRoles(guild) {
+  console.log(
+    "🗑️ Deleting removable roles..."
+  );
+
+  const roles = [
+    ...guild.roles.cache.values(),
+  ]
+    .filter(
+      (role) =>
+        role.id !== guild.id
+    )
+    .sort(
+      (a, b) =>
+        b.position - a.position
+    );
+
+  for (const role of roles) {
+    try {
+      if (role.managed) {
+        console.log(
+          `⏭️ Skipping managed role: ${role.name}`
+        );
+        continue;
+      }
+
+      await role.delete(
+        "Complete Kaqer server repair"
+      );
+
+      console.log(
+        `🗑️ Deleted role: ${role.name}`
+      );
+    } catch (error) {
+      console.log(
+        `⚠️ Could not delete role ${role.name}: ${error.message}`
+      );
+    }
+  }
+
+  await new Promise((resolve) =>
+    setTimeout(resolve, 1500)
+  );
+
+  console.log(
+    "✅ Role deletion finished."
+  );
+}
+
+// ==========================================================
+// CREATE ROLES
+// ==========================================================
+
+async function createRoles(guild) {
   const roles = {};
 
+  console.log(
+    "✨ Creating roles..."
+  );
+
   for (const name of ROLE_NAMES) {
-    roles[name] = await createRole(guild, name);
+    try {
+      const role =
+        await guild.roles.create({
+          name,
+          reason:
+            "Kaqer server repair",
+        });
+
+      roles[name] = role;
+
+      console.log(
+        `✅ Created role: ${name}`
+      );
+    } catch (error) {
+      console.log(
+        `❌ Could not create role ${name}: ${error.message}`
+      );
+    }
   }
 
   return roles;
@@ -323,24 +537,34 @@ async function createAllRoles(guild) {
 // STAFF PERMISSIONS
 // ==========================================================
 
-function staffPermissions(guild, roles) {
-  return [
+function staffOverwrites(
+  guild,
+  roles
+) {
+  const overwrites = [
     {
-      id: guild.roles.everyone.id,
+      id:
+        guild.roles.everyone.id,
       deny: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
       ],
     },
+  ];
 
-    ...[
-      "owner",
-      "co-owner",
-      "admin",
-      "moderator",
-      "staff",
-      "support",
-    ].map((name) => ({
+  const staffRoles = [
+    "owner",
+    "co-owner",
+    "admin",
+    "moderator",
+    "staff",
+    "support",
+  ];
+
+  for (const name of staffRoles) {
+    if (!roles[name]) continue;
+
+    overwrites.push({
       id: roles[name].id,
       allow: [
         PermissionFlagsBits.ViewChannel,
@@ -349,106 +573,145 @@ function staffPermissions(guild, roles) {
         PermissionFlagsBits.Connect,
         PermissionFlagsBits.Speak,
       ],
-    })),
-  ];
+    });
+  }
+
+  return overwrites;
 }
 
 // ==========================================================
-// CREATE CATEGORY
+// CATEGORY
 // ==========================================================
 
-async function createCategory(
+async function makeCategory(
   guild,
   name,
   roles,
   staffOnly = false
 ) {
   const options = {
-    name: `${CATEGORY_PREFIX}${name}`,
-    type: ChannelType.GuildCategory,
+    name:
+      `${CATEGORY_PREFIX}${name}`,
+    type:
+      ChannelType.GuildCategory,
   };
 
   if (staffOnly) {
     options.permissionOverwrites =
-      staffPermissions(guild, roles);
+      staffOverwrites(
+        guild,
+        roles
+      );
   }
 
-  return await guild.channels.create(options);
+  return guild.channels.create(
+    options
+  );
 }
 
 // ==========================================================
-// CREATE TEXT CHANNEL
+// TEXT
 // ==========================================================
 
-async function createText(
+async function makeText(
   guild,
   category,
   name,
-  permissionOverwrites = []
+  options = {}
 ) {
-  return await guild.channels.create({
-    name: `${CHANNEL_PREFIX}${name}`,
-    type: ChannelType.GuildText,
+  return guild.channels.create({
+    name:
+      `${CHANNEL_PREFIX}${name}`,
+    type:
+      ChannelType.GuildText,
     parent: category.id,
-    permissionOverwrites,
+    ...options,
   });
 }
 
 // ==========================================================
-// CREATE VOICE CHANNEL
+// VOICE
 // ==========================================================
 
-async function createVoice(
+async function makeVoice(
   guild,
   category,
   name,
-  permissionOverwrites = []
+  options = {}
 ) {
-  return await guild.channels.create({
-    name: `${CHANNEL_PREFIX}${name}`,
-    type: ChannelType.GuildVoice,
+  return guild.channels.create({
+    name:
+      `${CHANNEL_PREFIX}${name}`,
+    type:
+      ChannelType.GuildVoice,
     parent: category.id,
-    permissionOverwrites,
+    ...options,
   });
 }
 
 // ==========================================================
-// SEND RULES
+// LOCK CHANNEL
+// ==========================================================
+
+async function lockChannel(
+  channel,
+  guild
+) {
+  try {
+    await channel.permissionOverwrites.edit(
+      guild.roles.everyone.id,
+      {
+        SendMessages: false,
+      }
+    );
+  } catch (error) {
+    console.log(
+      `⚠️ Could not lock ${channel.name}: ${error.message}`
+    );
+  }
+}
+
+// ==========================================================
+// RULES
 // ==========================================================
 
 async function sendRules(channel) {
-  const embed = new EmbedBuilder()
-    .setTitle("౨ৎ・rules")
-    .setDescription(
-      [
-        "**1. Respect everyone**",
-        "Treat members and staff respectfully.",
-        "",
-        "**2. No harassment**",
-        "Do not bully, threaten, or target other members.",
-        "",
-        "**3. No spam**",
-        "Avoid message spam, ping spam, or channel flooding.",
-        "",
-        "**4. Keep things appropriate**",
-        "No NSFW or inappropriate content.",
-        "",
-        "**5. No discrimination**",
-        "Hate speech and discriminatory behavior are not allowed.",
-        "",
-        "**6. No unauthorized advertising**",
-        "Do not advertise without permission.",
-        "",
-        "**7. Follow staff instructions**",
-        "Staff may moderate situations when necessary.",
-        "",
-        "**8. Have fun**",
-        "Meet people, chat, and enjoy the community. >ᴗ<",
-      ].join("\n")
-    )
-    .setFooter({
-      text: "Please follow the rules >ᴗ<",
-    });
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・rules"
+      )
+      .setDescription(
+        [
+          "**01 — Be respectful**",
+          "Treat everyone with respect.",
+          "",
+          "**02 — No harassment**",
+          "Bullying, threats, and targeted harassment are not allowed.",
+          "",
+          "**03 — No spam**",
+          "Do not flood chats or spam pings.",
+          "",
+          "**04 — Keep content appropriate**",
+          "Follow Discord Terms of Service.",
+          "",
+          "**05 — Protect privacy**",
+          "Never post private information.",
+          "",
+          "**06 — Use the right channels**",
+          "Keep conversations where they belong.",
+          "",
+          "**07 — Staff**",
+          "Follow reasonable staff instructions.",
+          "",
+          "**08 — Have fun**",
+          "Meet people and enjoy the community. >ᴗ<",
+        ].join("\n")
+      )
+      .setFooter({
+        text:
+          "౨ৎ community rules",
+      });
 
   await channel.send({
     embeds: [embed],
@@ -456,15 +719,24 @@ async function sendRules(channel) {
 }
 
 // ==========================================================
-// SEND WELCOME
+// WELCOME
 // ==========================================================
 
 async function sendWelcome(channel) {
-  const embed = new EmbedBuilder()
-    .setTitle("౨ৎ・welcome")
-    .setDescription(
-      "welcome to the community >ᴗ<\n\nread the rules, choose your roles, and come hang out!"
-    );
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・welcome"
+      )
+      .setDescription(
+        [
+          "welcome to the community >ᴗ<",
+          "",
+          "read the rules,",
+          "check out self roles,",
+          "and come hang out!",
+        ].join("\n")
+      );
 
   await channel.send({
     embeds: [embed],
@@ -472,25 +744,30 @@ async function sendWelcome(channel) {
 }
 
 // ==========================================================
-// SEND LEVELS
+// LEVEL CHANNEL
 // ==========================================================
 
 async function sendLevels(channel) {
-  const embed = new EmbedBuilder()
-    .setTitle("౨ৎ・levels")
-    .setDescription(
-      [
-        "Chat to earn XP and level up!",
-        "",
-        "level 5 → level 5",
-        "level 10 → level 10",
-        "level 20 → level 20",
-        "level 30 → level 30",
-        "level 50 → level 50",
-        "",
-        "Use `/rank` to view your level.",
-      ].join("\n")
-    );
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・levels"
+      )
+      .setDescription(
+        [
+          "chat to earn XP >ᴗ<",
+          "",
+          "**level rewards**",
+          "",
+          "level 5",
+          "level 10",
+          "level 20",
+          "level 30",
+          "level 50",
+          "",
+          "Use `/rank` to check your progress.",
+        ].join("\n")
+      );
 
   await channel.send({
     embeds: [embed],
@@ -501,152 +778,199 @@ async function sendLevels(channel) {
 // SELF ROLES
 // ==========================================================
 
-async function sendSelfRoles(channel, roles) {
-  const embed = new EmbedBuilder()
-    .setTitle("౨ৎ・self roles")
-    .setDescription(
-      [
-        "**pronouns**",
-        "❤️ she/her",
-        "💙 he/him",
-        "🖤 they/them",
-        "💚 any pronouns",
-        "",
-        "**age**",
-        "🧑 adult",
-        "🔞 minor",
-        "",
-        "**interests**",
-        "🎨 artist",
-        "🎹 music",
-        "🌝 anime",
-        "",
-        "**personality**",
-        "👤 introvert",
-        "🫂 extrovert",
-        "",
-        "**notifications**",
-        "📣 announcements",
-        "🎫 events",
-        "🫡 giveaways",
-        "🐻‍❄️ polls",
-      ].join("\n")
-    )
-    .setFooter({
-      text: "choose your roles >ᴗ<",
-    });
+async function sendSelfRoles(channel) {
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・self roles"
+      )
+      .setDescription(
+        [
+          "**pronouns**",
+          "❤️ she/her",
+          "💙 he/him",
+          "🖤 they/them",
+          "💚 any pronouns",
+          "",
+          "**age**",
+          "🧑 adult",
+          "🔞 minor",
+          "",
+          "**interests**",
+          "🎨 artist",
+          "🎹 music",
+          "🌝 anime",
+          "",
+          "**personality**",
+          "👤 introvert",
+          "🫂 extrovert",
+          "",
+          "**notifications**",
+          "📣 announcements",
+          "🎫 events",
+          "🫡 giveaways",
+          "🐻‍❄️ polls",
+        ].join("\n")
+      );
 
-  const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("role_sheher")
-      .setLabel("❤️ she/her")
-      .setStyle(ButtonStyle.Secondary),
+  const rows = [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("role_sheher")
+        .setLabel("❤️ she/her")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_hehim")
-      .setLabel("💙 he/him")
-      .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("role_hehim")
+        .setLabel("💙 he/him")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_theythem")
-      .setLabel("🖤 they/them")
-      .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("role_theythem")
+        .setLabel("🖤 they/them")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_any")
-      .setLabel("💚 any pronouns")
-      .setStyle(ButtonStyle.Secondary)
-  );
+      new ButtonBuilder()
+        .setCustomId("role_any")
+        .setLabel("💚 any pronouns")
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+    ),
 
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("role_adult")
-      .setLabel("🧑 adult")
-      .setStyle(ButtonStyle.Secondary),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("role_adult")
+        .setLabel("🧑 adult")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_minor")
-      .setLabel("🔞 minor")
-      .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("role_minor")
+        .setLabel("🔞 minor")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_artist")
-      .setLabel("🎨 artist")
-      .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("role_artist")
+        .setLabel("🎨 artist")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_music")
-      .setLabel("🎹 music")
-      .setStyle(ButtonStyle.Secondary)
-  );
+      new ButtonBuilder()
+        .setCustomId("role_music")
+        .setLabel("🎹 music")
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+    ),
 
-  const row3 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("role_anime")
-      .setLabel("🌝 anime")
-      .setStyle(ButtonStyle.Secondary),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("role_anime")
+        .setLabel("🌝 anime")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_introvert")
-      .setLabel("👤 introvert")
-      .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("role_introvert")
+        .setLabel("👤 introvert")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_extrovert")
-      .setLabel("🫂 extrovert")
-      .setStyle(ButtonStyle.Secondary)
-  );
+      new ButtonBuilder()
+        .setCustomId("role_extrovert")
+        .setLabel("🫂 extrovert")
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+    ),
 
-  const row4 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("role_announcements")
-      .setLabel("📣 announcements")
-      .setStyle(ButtonStyle.Secondary),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(
+          "role_announcements"
+        )
+        .setLabel(
+          "📣 announcements"
+        )
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_events")
-      .setLabel("🎫 events")
-      .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("role_events")
+        .setLabel("🎫 events")
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_giveaways")
-      .setLabel("🫡 giveaways")
-      .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(
+          "role_giveaways"
+        )
+        .setLabel(
+          "🫡 giveaways"
+        )
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
 
-    new ButtonBuilder()
-      .setCustomId("role_polls")
-      .setLabel("🐻‍❄️ polls")
-      .setStyle(ButtonStyle.Secondary)
-  );
+      new ButtonBuilder()
+        .setCustomId("role_polls")
+        .setLabel("🐻‍❄️ polls")
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+    ),
+  ];
 
   await channel.send({
     embeds: [embed],
-    components: [
-      row1,
-      row2,
-      row3,
-      row4,
-    ],
+    components: rows,
   });
 }
 
 // ==========================================================
-// CONFESSION PANEL
+// CONFESSIONS
 // ==========================================================
 
-async function sendConfessionPanel(channel) {
-  const embed = new EmbedBuilder()
-    .setTitle("౨ৎ・anonymous confessions")
-    .setDescription(
-      "have something to say?\n\nsend it anonymously with the button below. >ᴗ<"
-    );
+async function sendConfessions(
+  channel
+) {
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・anonymous confessions"
+      )
+      .setDescription(
+        "have something to say?\n\nsend it anonymously below. >ᴗ<"
+      );
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("confess_button")
-      .setLabel("💭 make a confession")
-      .setStyle(ButtonStyle.Secondary)
-  );
+  const row =
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(
+          "confess_button"
+        )
+        .setLabel(
+          "💭 make a confession"
+        )
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+    );
 
   await channel.send({
     embeds: [embed],
@@ -655,22 +979,32 @@ async function sendConfessionPanel(channel) {
 }
 
 // ==========================================================
-// TICKET PANEL
+// SUPPORT
 // ==========================================================
 
-async function sendTicketPanel(channel) {
-  const embed = new EmbedBuilder()
-    .setTitle("౨ৎ・support")
-    .setDescription(
-      "need help with something?\n\ncreate a private ticket and the staff team will help you."
-    );
+async function sendSupport(channel) {
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・support"
+      )
+      .setDescription(
+        "need help?\n\ncreate a private ticket and staff will help you."
+      );
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("create_ticket")
-      .setLabel("🎫 create ticket")
-      .setStyle(ButtonStyle.Secondary)
-  );
+  const row =
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(
+          "create_ticket"
+        )
+        .setLabel(
+          "🎫 create ticket"
+        )
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+    );
 
   await channel.send({
     embeds: [embed],
@@ -679,22 +1013,34 @@ async function sendTicketPanel(channel) {
 }
 
 // ==========================================================
-// MOD APPLICATION PANEL
+// APPLICATIONS
 // ==========================================================
 
-async function sendApplicationPanel(channel) {
-  const embed = new EmbedBuilder()
-    .setTitle("౨ৎ・moderator applications")
-    .setDescription(
-      "interested in helping the community?\n\nclick below to submit a moderator application."
-    );
+async function sendApplications(
+  channel
+) {
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        "౨ৎ・moderator applications"
+      )
+      .setDescription(
+        "want to help the community?\n\nclick below to apply."
+      );
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("moderator_apply")
-      .setLabel("📝 apply for moderator")
-      .setStyle(ButtonStyle.Secondary)
-  );
+  const row =
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(
+          "moderator_apply"
+        )
+        .setLabel(
+          "📝 apply for moderator"
+        )
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+    );
 
   await channel.send({
     embeds: [embed],
@@ -703,260 +1049,301 @@ async function sendApplicationPanel(channel) {
 }
 
 // ==========================================================
-// FULL SERVER REPAIR
+// FULL REPAIR
 // ==========================================================
 
 async function repairServer(guild) {
-  console.log("");
-  console.log("==========================================");
-  console.log(`🔧 REPAIRING: ${guild.name}`);
-  console.log("==========================================");
+  console.log(
+    "======================================"
+  );
 
-  // DELETE CHANNELS FIRST
-  await deleteAllChannels(guild);
+  console.log(
+    `🔧 REPAIRING ${guild.name}`
+  );
 
-  // DELETE ROLES
-  await deleteAllRoles(guild);
+  console.log(
+    "======================================"
+  );
 
-  // CREATE NEW ROLES
-  const roles = await createAllRoles(guild);
+  // DELETE EVERYTHING FIRST
+  await deleteChannels(guild);
+  await deleteRoles(guild);
 
-  console.log("✅ New roles created.");
+  // CREATE ROLES
+  const roles =
+    await createRoles(guild);
 
-  // --------------------------------------------------------
+  // IMPORTANT:
+  // Refresh guild data after role creation.
+  await guild.roles.fetch();
+
+  // Try to move bot above the new roles.
+  await fixBotRolePosition(guild);
+
+  // ========================================================
   // INFO
-  // --------------------------------------------------------
+  // ========================================================
 
-  const info = await createCategory(
-    guild,
-    "INFO",
-    roles
-  );
+  const info =
+    await makeCategory(
+      guild,
+      "INFO",
+      roles
+    );
 
-  const rules = await createText(
-    guild,
-    info,
-    "rules"
-  );
+  const rules =
+    await makeText(
+      guild,
+      info,
+      "rules"
+    );
 
-  const announcements = await createText(
-    guild,
-    info,
-    "announcements"
-  );
+  const announcements =
+    await makeText(
+      guild,
+      info,
+      "announcements"
+    );
 
-  const welcome = await createText(
-    guild,
-    info,
-    "welcome"
-  );
+  const welcome =
+    await makeText(
+      guild,
+      info,
+      "welcome"
+    );
 
-  const goodbye = await createText(
-    guild,
-    info,
-    "goodbye"
-  );
+  const goodbye =
+    await makeText(
+      guild,
+      info,
+      "goodbye"
+    );
 
-  const introductions = await createText(
-    guild,
-    info,
-    "introductions"
-  );
+  const introductions =
+    await makeText(
+      guild,
+      info,
+      "introductions"
+    );
 
-  const boosts = await createText(
-    guild,
-    info,
-    "boosts"
-  );
+  const boosts =
+    await makeText(
+      guild,
+      info,
+      "boosts"
+    );
 
-  const partnerships = await createText(
-    guild,
-    info,
-    "partnerships"
-  );
+  const partnerships =
+    await makeText(
+      guild,
+      info,
+      "partnerships"
+    );
 
-  const selfRoles = await createText(
-    guild,
-    info,
-    "self-roles"
-  );
+  const selfRoles =
+    await makeText(
+      guild,
+      info,
+      "self-roles"
+    );
 
-  // --------------------------------------------------------
+  // ========================================================
   // COMMUNITY
-  // --------------------------------------------------------
+  // ========================================================
 
-  const community = await createCategory(
-    guild,
-    "COMMUNITY",
-    roles
-  );
+  const community =
+    await makeCategory(
+      guild,
+      "COMMUNITY",
+      roles
+    );
 
-  const chat = await createText(
+  await makeText(
     guild,
     community,
     "chat"
   );
 
-  const makeFriends = await createText(
+  await makeText(
     guild,
     community,
     "make-friends"
   );
 
-  const media = await createText(
+  await makeText(
     guild,
     community,
     "media"
   );
 
-  const memes = await createText(
+  await makeText(
     guild,
     community,
     "memes"
   );
 
-  // --------------------------------------------------------
+  // ========================================================
   // EXTRAS
-  // --------------------------------------------------------
+  // ========================================================
 
-  const extras = await createCategory(
-    guild,
-    "EXTRAS",
-    roles
-  );
+  const extras =
+    await makeCategory(
+      guild,
+      "EXTRAS",
+      roles
+    );
 
-  const levelsChannel = await createText(
-    guild,
-    extras,
-    "levels"
-  );
+  const levelsChannel =
+    await makeText(
+      guild,
+      extras,
+      "levels"
+    );
 
-  const starboard = await createText(
+  await makeText(
     guild,
     extras,
     "starboard"
   );
 
-  const confessions = await createText(
-    guild,
-    extras,
-    "confessions"
-  );
+  const confessions =
+    await makeText(
+      guild,
+      extras,
+      "confessions"
+    );
 
-  const support = await createText(
-    guild,
-    extras,
-    "support"
-  );
+  const support =
+    await makeText(
+      guild,
+      extras,
+      "support"
+    );
 
-  // --------------------------------------------------------
+  // ========================================================
   // VOICE
-  // --------------------------------------------------------
+  // ========================================================
 
-  const voice = await createCategory(
-    guild,
-    "VOICE",
-    roles
-  );
+  const voice =
+    await makeCategory(
+      guild,
+      "VOICE",
+      roles
+    );
 
-  const generalVC = await createVoice(
+  await makeVoice(
     guild,
     voice,
     "VC"
   );
 
-  // --------------------------------------------------------
+  // ========================================================
   // STAFF
-  // --------------------------------------------------------
+  // ========================================================
 
-  const staff = await createCategory(
-    guild,
-    "STAFF",
-    roles,
-    true
-  );
+  const staff =
+    await makeCategory(
+      guild,
+      "STAFF",
+      roles,
+      true
+    );
 
-  const staffChat = await createText(
+  await makeText(
     guild,
     staff,
     "staff-chat"
   );
 
-  const moderation = await createText(
-    guild,
-    staff,
-    "moderation"
-  );
+  const moderation =
+    await makeText(
+      guild,
+      staff,
+      "moderation"
+    );
 
-  const staffLounge = await createText(
+  await makeText(
     guild,
     staff,
     "staff-lounge"
   );
 
-  const staffVC = await createVoice(
+  await makeVoice(
     guild,
     staff,
     "staff-vc"
   );
 
-  // --------------------------------------------------------
-  // LOCK INFO CHANNELS
-  // --------------------------------------------------------
+  // ========================================================
+  // LOCK INFO
+  // ========================================================
 
-  const locked = [
+  await lockChannel(
     rules,
+    guild
+  );
+
+  await lockChannel(
     announcements,
+    guild
+  );
+
+  await lockChannel(
     welcome,
+    guild
+  );
+
+  await lockChannel(
     goodbye,
+    guild
+  );
+
+  await lockChannel(
     boosts,
+    guild
+  );
+
+  await lockChannel(
     partnerships,
-  ];
+    guild
+  );
 
-  for (const channel of locked) {
-    await channel.permissionOverwrites.edit(
-      guild.roles.everyone.id,
-      {
-        SendMessages: false,
-      }
-    );
-  }
-
-  // --------------------------------------------------------
+  // ========================================================
   // SEND PANELS
-  // --------------------------------------------------------
+  // ========================================================
 
   await sendRules(rules);
   await sendWelcome(welcome);
+  await sendSelfRoles(selfRoles);
   await sendLevels(levelsChannel);
-  await sendSelfRoles(selfRoles, roles);
-  await sendConfessionPanel(confessions);
-  await sendTicketPanel(support);
-
-  // --------------------------------------------------------
-  // STAFF INFO
-  // --------------------------------------------------------
-
-  await staffChat.send(
-    "౨ৎ・**staff chat**\n\nPrivate staff discussion."
+  await sendConfessions(confessions);
+  await sendSupport(support);
+  await sendApplications(
+    moderation
   );
 
   await moderation.send(
-    "౨ৎ・**moderation**\n\nUse this channel for moderation activity."
+    "౨ৎ・**staff moderation**\n\nUse this channel for moderation."
   );
 
-  await staffLounge.send(
-    "౨ৎ・**staff lounge**\n\nStaff hangout."
+  // ========================================================
+  // FINAL ROLE POSITION FIX
+  // ========================================================
+
+  await guild.roles.fetch();
+  await fixBotRolePosition(guild);
+
+  console.log(
+    "======================================"
   );
 
-  // --------------------------------------------------------
-  // FINISH
-  // --------------------------------------------------------
+  console.log(
+    "✅ COMPLETE SERVER REPAIR FINISHED"
+  );
 
-  console.log("");
-  console.log("==========================================");
-  console.log("✅ SERVER REPAIR COMPLETE");
-  console.log("==========================================");
+  console.log(
+    "======================================"
+  );
 }
 
 // ==========================================================
@@ -976,13 +1363,13 @@ const commands = [
   new SlashCommandBuilder()
     .setName("rank")
     .setDescription(
-      "View your level and XP."
+      "View your XP and level."
     ),
 
   new SlashCommandBuilder()
     .setName("leaderboard")
     .setDescription(
-      "View the server XP leaderboard."
+      "View the XP leaderboard."
     ),
 
   new SlashCommandBuilder()
@@ -1011,193 +1398,200 @@ const commands = [
     .setDefaultMemberPermissions(
       PermissionFlagsBits.Administrator
     ),
-].map((command) => command.toJSON());
-
-// ==========================================================
-// REGISTER COMMANDS
-// ==========================================================
-
-async function registerCommands() {
-  const rest = new REST({
-    version: "10",
-  }).setToken(TOKEN);
-
-  try {
-    await rest.put(
-      Routes.applicationCommands(client.user.id),
-      {
-        body: commands,
-      }
-    );
-
-    console.log("✅ Slash commands registered.");
-  } catch (error) {
-    console.error(
-      "❌ Command registration error:",
-      error
-    );
-  }
-}
+].map((command) =>
+  command.toJSON()
+);
 
 // ==========================================================
 // READY
 // ==========================================================
 
-client.once("ready", async () => {
-  console.log("");
-  console.log("==========================================");
-  console.log(`🤖 Logged in as ${client.user.tag}`);
-  console.log("==========================================");
-
-  client.user.setPresence({
-    activities: [
-      {
-        name: "the community >ᴗ<",
-        type: ActivityType.Watching,
-      },
-    ],
-    status: "online",
-  });
-
-  await registerCommands();
-
-  console.log(
-    `🌐 Connected to ${client.guilds.cache.size} server(s).`
-  );
-});
-
-// ==========================================================
-// NEW SERVER
-// ==========================================================
-
-client.on("guildCreate", async (guild) => {
-  console.log(
-    `✨ Bot joined ${guild.name}`
-  );
-
-  try {
-    await repairServer(guild);
-  } catch (error) {
-    console.error(
-      `❌ Setup failed for ${guild.name}:`,
-      error
+client.once(
+  "ready",
+  async () => {
+    console.log(
+      `🤖 ${client.user.tag} is online!`
     );
+
+    client.user.setPresence({
+      activities: [
+        {
+          name:
+            "the community >ᴗ<",
+          type:
+            ActivityType.Watching,
+        },
+      ],
+      status: "online",
+    });
+
+    try {
+      const rest =
+        new REST({
+          version: "10",
+        }).setToken(
+          TOKEN
+        );
+
+      await rest.put(
+        Routes.applicationCommands(
+          client.user.id
+        ),
+        {
+          body: commands,
+        }
+      );
+
+      console.log(
+        "✅ Commands registered."
+      );
+    } catch (error) {
+      console.error(
+        "❌ Command registration error:",
+        error.message
+      );
+    }
   }
-});
+);
 
 // ==========================================================
 // MEMBER JOIN
 // ==========================================================
 
-client.on("guildMemberAdd", async (member) => {
-  try {
-    const botRole = member.guild.roles.cache.find(
-      (role) => role.name === "bots"
-    );
+client.on(
+  "guildMemberAdd",
+  async (member) => {
+    try {
+      const roleName =
+        member.user.bot
+          ? "bots"
+          : "member";
 
-    const memberRole = member.guild.roles.cache.find(
-      (role) => role.name === "member"
-    );
+      const role =
+        member.guild.roles.cache.find(
+          (r) =>
+            r.name ===
+            roleName
+        );
 
-    if (member.user.bot && botRole) {
-      await member.roles.add(botRole);
-    } else if (!member.user.bot && memberRole) {
-      await member.roles.add(memberRole);
-    }
+      if (role) {
+        await member.roles.add(
+          role
+        );
+      }
 
-    const welcomeChannel =
-      member.guild.channels.cache.find(
-        (channel) =>
-          channel.name ===
-          `${CHANNEL_PREFIX}welcome`
+      const welcome =
+        member.guild.channels.cache.find(
+          (c) =>
+            c.name ===
+            `${CHANNEL_PREFIX}welcome`
+        );
+
+      if (
+        welcome &&
+        welcome.isTextBased()
+      ) {
+        await welcome.send(
+          `welcome ${member} >ᴗ<`
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Member join error:",
+        error.message
       );
-
-    if (
-      welcomeChannel &&
-      welcomeChannel.isTextBased()
-    ) {
-      await welcomeChannel.send(
-        `welcome ${member} >ᴗ<`
-      );
     }
-  } catch (error) {
-    console.error(
-      "❌ Member join error:",
-      error
-    );
   }
-});
+);
 
 // ==========================================================
 // MESSAGE XP
 // ==========================================================
 
-const xpCooldown = new Set();
+client.on(
+  "messageCreate",
+  async (message) => {
+    if (!message.guild) return;
+    if (message.author.bot) return;
 
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-  if (!message.guild) return;
-
-  if (xpCooldown.has(message.author.id)) {
-    return;
-  }
-
-  xpCooldown.add(message.author.id);
-
-  setTimeout(() => {
-    xpCooldown.delete(message.author.id);
-  }, 60000);
-
-  if (!levels[message.guild.id]) {
-    levels[message.guild.id] = {};
-  }
-
-  if (!levels[message.guild.id][message.author.id]) {
-    levels[message.guild.id][message.author.id] = {
-      xp: 0,
-    };
-  }
-
-  const userData =
-    levels[message.guild.id][message.author.id];
-
-  const oldLevel = calculateLevel(userData.xp);
-
-  const gained =
-    Math.floor(Math.random() * 11) + 15;
-
-  userData.xp += gained;
-
-  const newLevel = calculateLevel(userData.xp);
-
-  saveLevels();
-
-  if (newLevel > oldLevel) {
-    const rewardName =
-      ROLE_NAMES.includes(`level ${newLevel}`)
-        ? `level ${newLevel}`
-        : null;
-
-    if (rewardName) {
-      const rewardRole =
-        message.guild.roles.cache.find(
-          (role) => role.name === rewardName
-        );
-
-      if (rewardRole) {
-        try {
-          await message.member.roles.add(
-            rewardRole
-          );
-        } catch {}
-      }
+    // XP cooldown.
+    if (
+      xpCooldown.has(
+        message.author.id
+      )
+    ) {
+      return;
     }
 
-    await message.channel.send(
-      `🎉 ${message.author} reached **level ${newLevel}**! >ᴗ<`
+    xpCooldown.add(
+      message.author.id
+    );
+
+    setTimeout(() => {
+      xpCooldown.delete(
+        message.author.id
+      );
+    }, XP_COOLDOWN);
+
+    // Get user data.
+    const data =
+      getUserData(
+        message.guild.id,
+        message.author.id
+      );
+
+    const oldXP =
+      data.xp;
+
+    const oldLevel =
+      getLevel(oldXP);
+
+    // Random XP from 15-25.
+    const gainedXP =
+      Math.floor(
+        Math.random() *
+          (XP_MAX - XP_MIN + 1)
+      ) + XP_MIN;
+
+    data.xp += gainedXP;
+
+    const newLevel =
+      getLevel(data.xp);
+
+    saveLevels();
+
+    // ALWAYS update the reward role.
+    // This is the important fix.
+    await updateLevelRole(
+      message.member
+    );
+
+    // Announce actual level ups.
+    if (
+      newLevel >
+      oldLevel
+    ) {
+      const levelChannel =
+        message.guild.channels.cache.find(
+          (channel) =>
+            channel.name ===
+            `${CHANNEL_PREFIX}levels`
+        );
+
+      const target =
+        levelChannel ||
+        message.channel;
+
+      await target.send(
+        `🎉 ${message.author} reached **level ${newLevel}**! >ᴗ<`
+      );
+    }
+
+    console.log(
+      `${message.author.tag}: +${gainedXP} XP | ${data.xp} total | level ${newLevel}`
     );
   }
-});
+);
 
 // ==========================================================
 // INTERACTIONS
@@ -1207,13 +1601,21 @@ client.on(
   "interactionCreate",
   async (interaction) => {
     try {
-      // ----------------------------------------------------
+      // ====================================================
       // SLASH COMMANDS
-      // ----------------------------------------------------
+      // ====================================================
 
-      if (interaction.isChatInputCommand()) {
+      if (
+        interaction.isChatInputCommand()
+      ) {
+        // ==================================================
         // SETUP
-        if (interaction.commandName === "setup") {
+        // ==================================================
+
+        if (
+          interaction.commandName ===
+          "setup"
+        ) {
           if (
             !interaction.memberPermissions.has(
               PermissionFlagsBits.ManageGuild
@@ -1226,116 +1628,187 @@ client.on(
             });
           }
 
-          await interaction.reply({
-            content:
-              "🔧 Starting a complete server repair...\n\n⚠️ Existing channels and removable roles will be deleted.",
+          // Defer immediately.
+          await interaction.deferReply({
             ephemeral: true,
           });
 
-          await repairServer(
-            interaction.guild
-          );
+          try {
+            await interaction.editReply(
+              "🔧 **Starting complete server repair...**\n\n🗑️ Deleting channels and roles..."
+            );
+
+            await repairServer(
+              interaction.guild
+            );
+
+            await interaction.editReply(
+              "✅ **Repair complete!**\n\n౨ৎ Server rebuilt successfully with the `౨ৎ` and `>ᴗ<` style.\n\n⭐ The level system is also fixed through level 50."
+            );
+          } catch (error) {
+            console.error(
+              "❌ REPAIR ERROR:",
+              error
+            );
+
+            try {
+              await interaction.editReply(
+                `❌ **Repair failed.**\n\n\`${error.message}\`\n\nGive the bot **Administrator** permission and try again.`
+              );
+            } catch {}
+          }
 
           return;
         }
 
+        // ==================================================
         // RANK
-        if (interaction.commandName === "rank") {
-          const guildId = interaction.guild.id;
-          const userId = interaction.user.id;
+        // ==================================================
 
+        if (
+          interaction.commandName ===
+          "rank"
+        ) {
           const data =
-            levels[guildId]?.[userId] || {
-              xp: 0,
-            };
+            getUserData(
+              interaction.guild.id,
+              interaction.user.id
+            );
 
-          const level = calculateLevel(data.xp);
-          const currentLevelXP =
-            xpForLevel(level);
-          const nextLevelXP =
-            xpForLevel(level + 1);
+          const level =
+            getLevel(
+              data.xp
+            );
+
+          const currentXP =
+            xpForLevel(
+              level
+            );
+
+          const nextXP =
+            xpForLevel(
+              level + 1
+            );
 
           const progress =
-            data.xp - currentLevelXP;
+            Math.max(
+              0,
+              data.xp -
+                currentXP
+            );
 
           const needed =
-            nextLevelXP - currentLevelXP;
+            nextXP -
+            currentXP;
 
-          const embed = new EmbedBuilder()
-            .setTitle("౨ৎ・your rank")
-            .setDescription(
-              [
-                `**User:** ${interaction.user}`,
-                `**Level:** ${level}`,
-                `**XP:** ${progress} / ${needed}`,
-                "",
-                `**Total XP:** ${data.xp}`,
-              ].join("\n")
-            );
+          const embed =
+            new EmbedBuilder()
+              .setTitle(
+                "౨ৎ・your rank"
+              )
+              .setDescription(
+                [
+                  `**user:** ${interaction.user}`,
+                  `**level:** ${level}`,
+                  `**total XP:** ${data.xp}`,
+                  `**progress:** ${progress} / ${needed}`,
+                  "",
+                  `**next level:** ${nextXP} XP`,
+                ].join("\n")
+              );
 
           return interaction.reply({
             embeds: [embed],
           });
         }
 
+        // ==================================================
         // LEADERBOARD
+        // ==================================================
+
         if (
           interaction.commandName ===
           "leaderboard"
         ) {
           const guildData =
-            levels[interaction.guild.id] || {};
+            levels[
+              interaction.guild.id
+            ] || {};
 
-          const entries = Object.entries(
-            guildData
-          )
-            .sort(
-              (a, b) =>
-                (b[1]?.xp || 0) -
-                (a[1]?.xp || 0)
+          const entries =
+            Object.entries(
+              guildData
             )
-            .slice(0, 10);
+              .sort(
+                (a, b) =>
+                  (b[1]?.xp || 0) -
+                  (a[1]?.xp || 0)
+              )
+              .slice(
+                0,
+                10
+              );
 
-          if (!entries.length) {
+          if (
+            !entries.length
+          ) {
             return interaction.reply(
-              "No XP data yet. Start chatting! >ᴗ<"
+              "Nobody has earned XP yet. >ᴗ<"
             );
           }
 
-          const lines = [];
+          const lines =
+            [];
 
           for (
             let i = 0;
-            i < entries.length;
+            i <
+            entries.length;
             i++
           ) {
-            const [userId, data] =
+            const [
+              userId,
+              data,
+            ] =
               entries[i];
 
             const user =
               await client.users
-                .fetch(userId)
-                .catch(() => null);
+                .fetch(
+                  userId
+                )
+                .catch(
+                  () => null
+                );
 
-            if (!user) continue;
+            if (!user)
+              continue;
 
             lines.push(
-              `**${i + 1}.** ${user} — ${data.xp} XP`
+              `**${i + 1}.** ${user} — level ${getLevel(data.xp)} — ${data.xp} XP`
             );
           }
 
-          const embed = new EmbedBuilder()
-            .setTitle("౨ৎ・leaderboard")
-            .setDescription(
-              lines.join("\n")
-            );
+          const embed =
+            new EmbedBuilder()
+              .setTitle(
+                "౨ৎ・leaderboard"
+              )
+              .setDescription(
+                lines.join(
+                  "\n"
+                )
+              );
 
           return interaction.reply({
             embeds: [embed],
           });
         }
 
+        // ==================================================
         // SERVER INFO
+        // ==================================================
+
         if (
           interaction.commandName ===
           "serverinfo"
@@ -1343,28 +1816,29 @@ client.on(
           const guild =
             interaction.guild;
 
-          const embed = new EmbedBuilder()
-            .setTitle(
-              `౨ৎ・${guild.name}`
-            )
-            .setDescription(
-              [
-                `**Owner:** <@${guild.ownerId}>`,
-                `**Members:** ${guild.memberCount}`,
-                `**Channels:** ${guild.channels.cache.size}`,
-                `**Roles:** ${guild.roles.cache.size}`,
-                `**Created:** <t:${Math.floor(
-                  guild.createdTimestamp / 1000
-                )}:D`,
-              ].join("\n")
-            );
+          const embed =
+            new EmbedBuilder()
+              .setTitle(
+                `౨ৎ・${guild.name}`
+              )
+              .setDescription(
+                [
+                  `**owner:** <@${guild.ownerId}>`,
+                  `**members:** ${guild.memberCount}`,
+                  `**channels:** ${guild.channels.cache.size}`,
+                  `**roles:** ${guild.roles.cache.size}`,
+                ].join("\n")
+              );
 
           return interaction.reply({
             embeds: [embed],
           });
         }
 
+        // ==================================================
         // CONFESS
+        // ==================================================
+
         if (
           interaction.commandName ===
           "confess"
@@ -1389,39 +1863,48 @@ client.on(
               .setStyle(
                 TextInputStyle.Paragraph
               )
-              .setRequired(true)
-              .setMaxLength(1000);
+              .setRequired(
+                true
+              )
+              .setMaxLength(
+                1000
+              );
 
-          const row =
+          modal.addComponents(
             new ActionRowBuilder().addComponents(
               input
-            );
-
-          modal.addComponents(row);
+            )
+          );
 
           return interaction.showModal(
             modal
           );
         }
 
+        // ==================================================
         // HELP
+        // ==================================================
+
         if (
           interaction.commandName ===
           "help"
         ) {
-          const embed = new EmbedBuilder()
-            .setTitle("౨ৎ・help")
-            .setDescription(
-              [
-                "`/rank` — view your level",
-                "`/leaderboard` — XP leaderboard",
-                "`/serverinfo` — server information",
-                "`/confess` — anonymous confession",
-                "`/setup` — repair/reset server",
-                "`/help` — show commands",
-                "`/restart` — restart bot",
-              ].join("\n")
-            );
+          const embed =
+            new EmbedBuilder()
+              .setTitle(
+                "౨ৎ・help"
+              )
+              .setDescription(
+                [
+                  "`/rank` — your XP",
+                  "`/leaderboard` — XP leaderboard",
+                  "`/serverinfo` — server info",
+                  "`/confess` — anonymous confession",
+                  "`/setup` — full server repair",
+                  "`/help` — help",
+                  "`/restart` — restart bot",
+                ].join("\n")
+              );
 
           return interaction.reply({
             embeds: [embed],
@@ -1429,7 +1912,10 @@ client.on(
           });
         }
 
+        // ==================================================
         // RESTART
+        // ==================================================
+
         if (
           interaction.commandName ===
           "restart"
@@ -1441,7 +1927,7 @@ client.on(
           ) {
             return interaction.reply({
               content:
-                "❌ Administrator permission required.",
+                "❌ Administrator required.",
               ephemeral: true,
             });
           }
@@ -1450,67 +1936,89 @@ client.on(
             "♻️ Restarting..."
           );
 
-          setTimeout(() => {
-            process.exit(0);
-          }, 1000);
+          setTimeout(
+            () => {
+              process.exit(0);
+            },
+            1000
+          );
 
           return;
         }
       }
 
-      // ----------------------------------------------------
+      // ====================================================
       // BUTTONS
-      // ----------------------------------------------------
+      // ====================================================
 
-      if (interaction.isButton()) {
+      if (
+        interaction.isButton()
+      ) {
         const guild =
           interaction.guild;
 
-        // SELF ROLE BUTTONS
-        const roleButtons = {
-          role_sheher: "she/her",
-          role_hehim: "he/him",
-          role_theythem: "they/them",
-          role_any: "any pronouns",
+        const roleMap = {
+          role_sheher:
+            "she/her",
+          role_hehim:
+            "he/him",
+          role_theythem:
+            "they/them",
+          role_any:
+            "any pronouns",
 
-          role_adult: "adult",
-          role_minor: "minor",
+          role_adult:
+            "adult",
+          role_minor:
+            "minor",
 
-          role_artist: "artist",
-          role_music: "music",
-          role_anime: "anime",
+          role_artist:
+            "artist",
+          role_music:
+            "music",
+          role_anime:
+            "anime",
 
-          role_introvert: "introvert",
-          role_extrovert: "extrovert",
+          role_introvert:
+            "introvert",
+          role_extrovert:
+            "extrovert",
 
           role_announcements:
             "announcements",
-          role_events: "events",
+          role_events:
+            "events",
           role_giveaways:
             "giveaways",
-          role_polls: "polls",
+          role_polls:
+            "polls",
         };
 
+        // ==================================================
+        // SELF ROLES
+        // ==================================================
+
         if (
-          roleButtons[
+          roleMap[
             interaction.customId
           ]
         ) {
           const roleName =
-            roleButtons[
+            roleMap[
               interaction.customId
             ];
 
           const role =
             guild.roles.cache.find(
               (r) =>
-                r.name === roleName
+                r.name ===
+                roleName
             );
 
           if (!role) {
             return interaction.reply({
               content:
-                "❌ That role does not exist.",
+                "❌ That role doesn't exist.",
               ephemeral: true,
             });
           }
@@ -1525,7 +2033,8 @@ client.on(
             );
 
             return interaction.reply({
-              content: `Removed **${roleName}** >ᴗ<`,
+              content:
+                `Removed **${roleName}** >ᴗ<`,
               ephemeral: true,
             });
           }
@@ -1535,12 +2044,16 @@ client.on(
           );
 
           return interaction.reply({
-            content: `Added **${roleName}** >ᴗ<`,
+            content:
+              `Added **${roleName}** >ᴗ<`,
             ephemeral: true,
           });
         }
 
+        // ==================================================
         // CONFESSION BUTTON
+        // ==================================================
+
         if (
           interaction.customId ===
           "confess_button"
@@ -1565,8 +2078,12 @@ client.on(
               .setStyle(
                 TextInputStyle.Paragraph
               )
-              .setRequired(true)
-              .setMaxLength(1000);
+              .setRequired(
+                true
+              )
+              .setMaxLength(
+                1000
+              );
 
           modal.addComponents(
             new ActionRowBuilder().addComponents(
@@ -1579,47 +2096,56 @@ client.on(
           );
         }
 
-        // CREATE TICKET
+        // ==================================================
+        // TICKET
+        // ==================================================
+
         if (
           interaction.customId ===
           "create_ticket"
         ) {
+          const username =
+            interaction.user.username
+              .toLowerCase()
+              .replace(
+                /[^a-z0-9]/g,
+                ""
+              )
+              .slice(
+                0,
+                15
+              );
+
+          const ticketName =
+            `${CHANNEL_PREFIX}ticket-${username}`;
+
           const existing =
             guild.channels.cache.find(
               (channel) =>
                 channel.name ===
-                `${CHANNEL_PREFIX}ticket-${interaction.user.username
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]/g, "")
-                  .slice(0, 15)}`
+                ticketName
             );
 
           if (existing) {
             return interaction.reply({
               content:
-                "You already have a ticket open.",
+                "🎫 You already have a ticket open.",
               ephemeral: true,
             });
           }
 
-          const staffRoles = [
-            "owner",
-            "co-owner",
-            "admin",
-            "moderator",
-            "staff",
-            "support",
-          ];
-
           const overwrites = [
             {
-              id: guild.roles.everyone.id,
+              id:
+                guild.roles
+                  .everyone.id,
               deny: [
                 PermissionFlagsBits.ViewChannel,
               ],
             },
             {
-              id: interaction.user.id,
+              id:
+                interaction.user.id,
               allow: [
                 PermissionFlagsBits.ViewChannel,
                 PermissionFlagsBits.SendMessages,
@@ -1628,47 +2154,65 @@ client.on(
             },
           ];
 
-          for (const roleName of staffRoles) {
+          const staffNames = [
+            "owner",
+            "co-owner",
+            "admin",
+            "moderator",
+            "staff",
+            "support",
+          ];
+
+          for (
+            const name of staffNames
+          ) {
             const role =
               guild.roles.cache.find(
                 (r) =>
-                  r.name === roleName
+                  r.name ===
+                  name
               );
 
-            if (role) {
-              overwrites.push({
-                id: role.id,
-                allow: [
-                  PermissionFlagsBits.ViewChannel,
-                  PermissionFlagsBits.SendMessages,
-                  PermissionFlagsBits.ReadMessageHistory,
-                ],
-              });
-            }
+            if (!role)
+              continue;
+
+            overwrites.push({
+              id: role.id,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+              ],
+            });
           }
 
           const ticket =
-            await guild.channels.create({
-              name: `${CHANNEL_PREFIX}ticket-${interaction.user.username
-                .toLowerCase()
-                .replace(/[^a-z0-9]/g, "")
-                .slice(0, 15)}`,
-              type: ChannelType.GuildText,
-              permissionOverwrites:
-                overwrites,
-            });
+            await guild.channels.create(
+              {
+                name:
+                  ticketName,
+                type:
+                  ChannelType.GuildText,
+                permissionOverwrites:
+                  overwrites,
+              }
+            );
 
           await ticket.send(
-            `౨ৎ・Welcome ${interaction.user}!\n\nPlease explain what you need help with.`
+            `౨ৎ・welcome ${interaction.user} >ᴗ<\n\nTell staff what you need help with.`
           );
 
           return interaction.reply({
-            content: `🎫 Ticket created: ${ticket}`,
+            content:
+              `🎫 Ticket created: ${ticket}`,
             ephemeral: true,
           });
         }
 
-        // MODERATOR APPLICATION
+        // ==================================================
+        // MOD APPLICATION
+        // ==================================================
+
         if (
           interaction.customId ===
           "moderator_apply"
@@ -1676,7 +2220,7 @@ client.on(
           const modal =
             new ModalBuilder()
               .setCustomId(
-                "moderator_application_modal"
+                "moderator_application"
               )
               .setTitle(
                 "moderator application"
@@ -1684,15 +2228,21 @@ client.on(
 
           const why =
             new TextInputBuilder()
-              .setCustomId("why")
+              .setCustomId(
+                "why"
+              )
               .setLabel(
-                "why should we choose you?"
+                "why do you want to be staff?"
               )
               .setStyle(
                 TextInputStyle.Paragraph
               )
-              .setRequired(true)
-              .setMaxLength(1000);
+              .setRequired(
+                true
+              )
+              .setMaxLength(
+                1000
+              );
 
           const experience =
             new TextInputBuilder()
@@ -1705,8 +2255,12 @@ client.on(
               .setStyle(
                 TextInputStyle.Paragraph
               )
-              .setRequired(true)
-              .setMaxLength(1000);
+              .setRequired(
+                true
+              )
+              .setMaxLength(
+                1000
+              );
 
           modal.addComponents(
             new ActionRowBuilder().addComponents(
@@ -1723,12 +2277,17 @@ client.on(
         }
       }
 
-      // ----------------------------------------------------
+      // ====================================================
       // MODALS
-      // ----------------------------------------------------
+      // ====================================================
 
-      if (interaction.isModalSubmit()) {
+      if (
+        interaction.isModalSubmit()
+      ) {
+        // ==================================================
         // CONFESSION
+        // ==================================================
+
         if (
           interaction.customId ===
           "confession_modal"
@@ -1751,27 +2310,35 @@ client.on(
                 .setTitle(
                   "౨ৎ・anonymous confession"
                 )
-                .setDescription(text)
+                .setDescription(
+                  text
+                )
                 .setFooter({
-                  text: "anonymous",
+                  text:
+                    "anonymous",
                 });
 
             await channel.send({
-              embeds: [embed],
+              embeds: [
+                embed,
+              ],
             });
           }
 
           return interaction.reply({
             content:
-              "Your confession was sent anonymously. >ᴗ<",
+              "💭 Your confession was sent anonymously. >ᴗ<",
             ephemeral: true,
           });
         }
 
-        // MODERATOR APPLICATION
+        // ==================================================
+        // APPLICATION
+        // ==================================================
+
         if (
           interaction.customId ===
-          "moderator_application_modal"
+          "moderator_application"
         ) {
           const why =
             interaction.fields.getTextInputValue(
@@ -1794,32 +2361,40 @@ client.on(
             const embed =
               new EmbedBuilder()
                 .setTitle(
-                  "౨ৎ・new moderator application"
+                  "౨ৎ・moderator application"
                 )
                 .addFields(
                   {
-                    name: "applicant",
-                    value: `${interaction.user}`,
+                    name:
+                      "applicant",
+                    value:
+                      `${interaction.user}`,
                   },
                   {
-                    name: "why",
-                    value: why,
+                    name:
+                      "why",
+                    value:
+                      why,
                   },
                   {
-                    name: "experience",
-                    value: experience,
+                    name:
+                      "experience",
+                    value:
+                      experience,
                   }
                 )
                 .setTimestamp();
 
             await channel.send({
-              embeds: [embed],
+              embeds: [
+                embed,
+              ],
             });
           }
 
           return interaction.reply({
             content:
-              "Your moderator application was submitted. >ᴗ<",
+              "📝 Application submitted. >ᴗ<",
             ephemeral: true,
           });
         }
@@ -1830,26 +2405,23 @@ client.on(
         error
       );
 
-      if (
-        interaction.replied ||
-        interaction.deferred
-      ) {
-        try {
-          await interaction.followUp({
+      try {
+        if (
+          interaction.deferred ||
+          interaction.replied
+        ) {
+          await interaction.editReply({
             content:
-              "❌ Something went wrong.",
-            ephemeral: true,
+              "❌ Something went wrong. Check Railway logs.",
           });
-        } catch {}
-      } else {
-        try {
+        } else {
           await interaction.reply({
             content:
               "❌ Something went wrong.",
             ephemeral: true,
           });
-        } catch {}
-      }
+        }
+      } catch {}
     }
   }
 );
@@ -1858,4 +2430,4 @@ client.on(
 // LOGIN
 // ==========================================================
 
-client.login(TOKEN); 
+client.login(TOKEN);
